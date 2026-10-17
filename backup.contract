@@ -1,0 +1,25 @@
+# Контракт бэкапа chronicle (v1). Читается backup-orchestrator из server-ops.
+# Общая система: ~/server-ops/docs/backup.md
+
+BACKUP_CONTRACT_VERSION=1
+BACKUP_ENABLED=1
+
+# Команда создания планового снимка (запускается из корня проекта).
+BACKUP_CMD="bash scripts/backup.sh scheduled"
+
+# Каталог снимков относительно корня проекта (попадает под вынос /srv/*/db-backups).
+BACKUP_DIR="db-backups"
+
+# Источник (для контроля «менялось ли»).
+BACKUP_SOURCE="data/chronicle.db"
+
+# Максимальный допустимый возраст самого свежего снимка, часы.
+BACKUP_MAX_AGE_HOURS=26
+
+# Локальная ретенция.
+BACKUP_LOCAL_KEEP_DAILY=7
+BACKUP_LOCAL_KEEP_WEEKLY=4
+BACKUP_LOCAL_KEEP_MONTHLY=6
+
+# Антидребезг: не чаще одного снимка в час.
+BACKUP_MIN_INTERVAL_MINUTES=60

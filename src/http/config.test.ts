@@ -6,7 +6,8 @@ describe('parseServerConfig', () => {
     const cfg = parseServerConfig({ tokens: ['t'] }, {});
     expect(cfg).toEqual({
       port: 4517,
-      dbPath: './chronicle.db',
+      hostname: '127.0.0.1',
+      dbPath: './data/chronicle.db',
       tokens: ['t'],
       idleGapMinutes: 30,
       archiveAfterDays: 120,

@@ -5,7 +5,9 @@ const PositiveInt = v.pipe(v.number(), v.integer(), v.minValue(1));
 
 const ServerConfig = v.object({
   port: v.optional(PositiveInt, 4517),
-  dbPath: v.optional(v.string(), './chronicle.db'),
+  /** Только localhost: наружу сервис публикует nginx */
+  hostname: v.optional(v.string(), '127.0.0.1'),
+  dbPath: v.optional(v.string(), './data/chronicle.db'),
   tokens: v.optional(v.array(v.pipe(v.string(), v.minLength(1))), []),
   /** Порог простоя по умолчанию при подсчёте активного времени */
   idleGapMinutes: v.optional(PositiveInt, 30),

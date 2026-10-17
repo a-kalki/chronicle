@@ -9,6 +9,7 @@ import { SessionReport } from '../../contract/v1.ts';
 import { AGENT_NAMES, getAdapter } from '../adapters/index.ts';
 import { formatEntry } from '../app/format.ts';
 import { runFinish } from '../finish/finish.ts';
+import { formatStatusLine, readLastFinish, writeLastFinish } from '../finish/last-result.ts';
 import { FinishState } from '../finish/state.ts';
 import { ApiClient } from './api.ts';
 import { type ClientConfig, loadClientConfig } from './config.ts';
@@ -25,7 +26,11 @@ const USAGE = `Использование:
                                  итог сессии: выжимка агентом → отчёт сегмента
                                  --hook — ID сессии из JSON на stdin (session_id)
                                  --detach — в фоне, лог: <stateDir>/finish.log
-  chronicle schema               JSON Schema выжимки (для --json-schema агентов)`;
+  chronicle schema               JSON Schema выжимки (для --json-schema агентов)
+  chronicle last --agent <имя>    последний итог finish агента (JSON, без сети) — для уведомлений
+  chronicle statusline [--agent <имя>]
+                                 строка статуса: последний итог сессии и очередь (без сети);
+                                 читает JSON Claude Code со stdin (модель)`;
 
 function fail(message: string): never {
   console.error(message);
@@ -47,6 +52,28 @@ function splitFlags(args: string[]): { flags: Record<string, string>; positional
   return { flags, positional };
 }
 
+/** Строка статуса: ничего не отправляет и не падает — Claude Code вызывает её часто */
+async function statusline(flags: Record<string, string>) {
+  let model: string | undefined;
+  if (!process.stdin.isTTY) {
+    try {
+      model = (JSON.parse(await Bun.stdin.text()) as { model?: { display_name?: string } }).model?.display_name;
+    } catch {
+      // stdin пуст или не JSON — без модели
+    }
+  }
+  try {
+    const config = loadClientConfig(process.env);
+    const all = readLastFinish(config.stateDir);
+    const last = flags.agent ? all[flags.agent] : Object.values(all).sort((a, b) => b.at.localeCompare(a.at))[0];
+    console.log(
+      formatStatusLine({ last, pending: new Outbox(config.outboxDir).list().length, now: new Date(), model }),
+    );
+  } catch {
+    console.log(model ?? '');
+  }
+}
+
 const stamp = (message: string) => console.log(`${new Date().toISOString()} ${message}`);
 
 async function finish(config: ClientConfig, flags: Record<string, string>, send: (r: unknown) => Promise<SendResult>) {
@@ -55,6 +82,9 @@ async function finish(config: ClientConfig, flags: Record<string, string>, send:
   const sessionId = flags.hook
     ? ((JSON.parse(await Bun.stdin.text()) as { session_id?: string }).session_id ?? fail('hook: нет session_id'))
     : (flags.session ?? fail('--session <id> или --hook'));
+
+  // Статус виден сразу: строка статуса Claude Code, уведомление pi
+  writeLastFinish(config.stateDir, { agent, sessionId, status: 'running', at: new Date().toISOString() });
 
   if (flags.detach) {
     mkdirSync(config.stateDir, { recursive: true });
@@ -79,6 +109,13 @@ async function finish(config: ClientConfig, flags: Record<string, string>, send:
     log: stamp,
   });
   stamp(`finish ${agent}/${sessionId}: ${JSON.stringify(res)}`);
+  writeLastFinish(config.stateDir, {
+    agent,
+    sessionId,
+    status: res.status,
+    at: new Date().toISOString(),
+    ...(res.status === 'reported' ? { summary: res.summary, knowledge: res.knowledge } : { reason: res.reason }),
+  });
   if (res.status === 'failed') process.exit(1);
 }
 
@@ -90,6 +127,12 @@ async function main(argv: string[]) {
   if (cmd === 'schema') return console.log(JSON.stringify(extractResultJsonSchema(), null, 2));
   // Неинтерактивный запуск агента для выжимки: его хуки завершения не должны снова запускать finish
   if (cmd === 'finish' && process.env.CHRONICLE_EXTRACT) return;
+
+  if (cmd === 'statusline') return statusline(splitFlags(rest).flags);
+  if (cmd === 'last') {
+    const agent = splitFlags(rest).flags.agent ?? fail('--agent <имя>');
+    return console.log(JSON.stringify(readLastFinish(loadClientConfig(process.env).stateDir)[agent] ?? null));
+  }
 
   const config = loadClientConfig(process.env);
   const api = new ApiClient(config.serverUrl, config.token);

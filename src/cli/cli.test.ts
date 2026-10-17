@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
-import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHandler } from '../http/server.ts';
@@ -168,5 +168,25 @@ describe('CLI chronicle', () => {
     });
     expect(res.code).toBe(0);
     expect(res.out).toContain('лог сессии не найден');
+
+    // итог записан для строки статуса и уведомлений
+    const last = JSON.parse(readFileSync(join(root, 'state', 'last-finish.json'), 'utf8'));
+    expect(last['claude-code']).toMatchObject({ sessionId: 'no-such-session', status: 'skipped' });
+
+    const line = await cli(['statusline'], { stdin: JSON.stringify({ model: { display_name: 'Opus 5.5' } }) });
+    expect(line.out).toContain('Opus 5.5 · chronicle · ');
+    expect(line.out).toContain('пропуск: лог сессии не найден');
+
+    const lastRes = await cli(['last', '--agent', 'claude-code']);
+    expect(JSON.parse(lastRes.out)).toMatchObject({ sessionId: 'no-such-session', status: 'skipped' });
+    expect(JSON.parse((await cli(['last', '--agent', 'pi'])).out)).toBeNull();
+  });
+
+  it('statusline без настроек клиента не падает и показывает только модель', async () => {
+    const res = await cli(['statusline'], {
+      stdin: JSON.stringify({ model: { display_name: 'Opus 5.5' } }),
+      env: { CHRONICLE_URL: '', CHRONICLE_TOKEN: '' },
+    });
+    expect(res).toMatchObject({ code: 0, out: 'Opus 5.5\n' });
   });
 });

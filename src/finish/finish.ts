@@ -48,7 +48,7 @@ export interface FinishDeps {
 }
 
 export type FinishResult =
-  | { status: 'reported'; seq: number; flush: FlushResult }
+  | { status: 'reported'; seq: number; summary: string; knowledge: number; flush: FlushResult }
   | { status: 'skipped'; reason: string }
   | { status: 'failed'; reason: string };
 
@@ -137,7 +137,13 @@ export async function runFinish(deps: FinishDeps): Promise<FinishResult> {
       watermark: read.watermark,
       summaries: [...summaries, summary].slice(-SUMMARIES_KEPT),
     });
-    return { status: 'reported', seq, flush: await deps.outbox.flush(deps.send) };
+    return {
+      status: 'reported',
+      seq,
+      summary: extract.work.summary,
+      knowledge: extract.knowledge.length,
+      flush: await deps.outbox.flush(deps.send),
+    };
   } catch (e) {
     return { status: 'failed', reason: e instanceof Error ? e.message : String(e) };
   } finally {

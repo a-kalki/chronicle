@@ -10,5 +10,10 @@
         ]
       }
     ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "chronicle statusline",
+    "padding": 0
   }
 }

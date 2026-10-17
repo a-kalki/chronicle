@@ -32,6 +32,44 @@ function sessionIdOf(ctx: PiContext): string | undefined {
   return file ? basename(file, '.jsonl').split('_').pop() : undefined;
 }
 
+interface LastFinish {
+  sessionId: string;
+  status: 'running' | 'reported' | 'skipped' | 'failed';
+  summary?: string;
+  knowledge?: number;
+  reason?: string;
+}
+
+const POLL_MS = 3000;
+/** Дольше выжимка не идёт (таймаут агента — 10 мин, плюс повтор) */
+const POLL_LIMIT_MS = 25 * 60_000;
+
+function lastFinish(): LastFinish | null {
+  const res = spawnSync('chronicle', ['last', '--agent', 'pi'], { encoding: 'utf8' });
+  try {
+    return res.status === 0 ? (JSON.parse(res.stdout) as LastFinish | null) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Ждёт итог фонового finish этой сессии и сообщает о нём в новой сессии */
+function notifyWhenDone(sessionId: string, ui: PiUi) {
+  const started = Date.now();
+  const timer = setInterval(() => {
+    const last = lastFinish();
+    const done = last?.sessionId === sessionId && last.status !== 'running';
+    if (!done && Date.now() - started < POLL_LIMIT_MS) return;
+    clearInterval(timer);
+    if (!done || !last) ui.notify?.('chronicle: итог прошлой сессии так и не пришёл — см. finish.log', 'warning');
+    else if (last.status === 'reported') {
+      const knowledge = last.knowledge ? `, +${last.knowledge} в базу знаний` : '';
+      ui.notify?.(`✓ Итог прошлой сессии отправлен: ${last.summary}${knowledge}`, 'info');
+    } else if (last.status === 'skipped') ui.notify?.(`Итог прошлой сессии не отправлен: ${last.reason}`, 'info');
+    else ui.notify?.(`✖ Итог прошлой сессии не получен: ${last.reason} (см. finish.log)`, 'error');
+  }, POLL_MS);
+}
+
 export default function chronicleFinish(pi: PiApi) {
   pi.registerCommand('finish', {
     description: 'Итог сессии в chronicle (в фоне) и новая чистая сессия; /finish exit — с выходом',
@@ -57,7 +95,10 @@ export default function chronicleFinish(pi: PiApi) {
         return;
       }
       await ctx.newSession?.({
-        withSession: async (next) => next.ui.notify?.('Итог прошлой сессии формируется в фоне', 'info'),
+        withSession: async (next) => {
+          next.ui.notify?.('Итог прошлой сессии формируется в фоне', 'info');
+          notifyWhenDone(sessionId, next.ui);
+        },
       });
     },
   });

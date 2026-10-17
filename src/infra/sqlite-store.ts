@@ -1,0 +1,244 @@
+import { Database } from 'bun:sqlite';
+import type { SessionReport } from '../../contract/v1.ts';
+import type { PendingCandidate, ProjectRef, Store, StoredSegment } from '../app/store.ts';
+import { MIGRATIONS } from './migrations.ts';
+
+const now = () => new Date().toISOString();
+
+function slugify(name: string): string {
+  return (
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'project'
+  );
+}
+
+export class SqliteStore implements Store {
+  constructor(private readonly db: Database) {}
+
+  transaction<T>(fn: () => T): T {
+    return this.db.transaction(fn)();
+  }
+
+  /** Ищет проект по remote, затем по host+path; запоминает новые связки найденного проекта. */
+  matchProject(ref: ProjectRef): string | null {
+    const byRemote = ref.remote
+      ? this.db
+          .query<{ project_id: string }, [string]>('SELECT project_id FROM project_remotes WHERE remote = ?')
+          .get(ref.remote)
+      : null;
+    const byPath = byRemote
+      ? null
+      : this.db
+          .query<{ project_id: string }, [string, string]>(
+            'SELECT project_id FROM project_paths WHERE host = ? AND path = ?',
+          )
+          .get(ref.host, ref.path);
+    const projectId = (byRemote ?? byPath)?.project_id ?? null;
+    if (projectId) this.link(projectId, ref);
+    return projectId;
+  }
+
+  createProject(ref: ProjectRef): string {
+    const base = slugify(ref.name);
+    let id = base;
+    for (let n = 2; this.db.query('SELECT 1 FROM projects WHERE id = ?').get(id); n++) id = `${base}-${n}`;
+    this.db.run('INSERT INTO projects (id, name, created_at) VALUES (?, ?, ?)', [id, ref.name, now()]);
+    this.link(id, ref);
+    return id;
+  }
+
+  private link(projectId: string, ref: ProjectRef): void {
+    if (ref.remote) {
+      this.db.run('INSERT OR IGNORE INTO project_remotes (remote, project_id) VALUES (?, ?)', [ref.remote, projectId]);
+    }
+    this.db.run('INSERT OR IGNORE INTO project_paths (host, path, project_id) VALUES (?, ?, ?)', [
+      ref.host,
+      ref.path,
+      projectId,
+    ]);
+  }
+
+  findSegmentId(agent: string, agentSessionId: string, seq: number): number | null {
+    const row = this.db
+      .query<{ id: number }, [string, string, number]>(
+        `SELECT g.id FROM segments g JOIN sessions s ON s.id = g.session_id
+         WHERE s.agent = ? AND s.agent_session_id = ? AND g.seq = ?`,
+      )
+      .get(agent, agentSessionId, seq);
+    return row?.id ?? null;
+  }
+
+  insertSegment(projectId: string, r: SessionReport): number {
+    const s = r.session;
+    this.db.run(
+      `INSERT INTO sessions (agent, agent_session_id, host, project_id, cwd) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT (agent, agent_session_id) DO NOTHING`,
+      [s.agent, s.id, s.host, projectId, r.project.path],
+    );
+    const sessionId = this.db
+      .query<{ id: number }, [string, string]>('SELECT id FROM sessions WHERE agent = ? AND agent_session_id = ?')
+      .get(s.agent, s.id)?.id;
+
+    const segmentId = Number(
+      this.db.run(
+        `INSERT INTO segments (session_id, seq, started_at, ended_at, activity_source, summary, received_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [sessionId ?? null, s.seq, s.startedAt, s.endedAt, r.activity.source, r.work.summary, now()],
+      ).lastInsertRowid,
+    );
+
+    const event = this.db.prepare('INSERT INTO activity_events (segment_id, at, actor) VALUES (?, ?, ?)');
+    for (const e of r.activity.events) event.run(segmentId, e.at, e.actor);
+    const item = this.db.prepare('INSERT INTO work_items (segment_id, pos, text) VALUES (?, ?, ?)');
+    for (const [pos, text] of r.work.items.entries()) item.run(segmentId, pos, text);
+    const commit = this.db.prepare('INSERT INTO commits (segment_id, hash, subject, at) VALUES (?, ?, ?, ?)');
+    for (const c of r.work.commits) commit.run(segmentId, c.hash, c.subject, c.at);
+    const file = this.db.prepare('INSERT INTO segment_files (segment_id, path) VALUES (?, ?)');
+    for (const f of r.work.files) file.run(segmentId, f);
+
+    const candidate = this.db.prepare(
+      `INSERT INTO knowledge_candidates (segment_id, scope, kind, title, symptoms, cause, fix, tags)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+    for (const k of r.knowledge) {
+      candidate.run(
+        segmentId,
+        k.scope,
+        k.kind,
+        k.title,
+        JSON.stringify(k.symptoms),
+        k.cause,
+        k.fix,
+        JSON.stringify(k.tags),
+      );
+    }
+    return segmentId;
+  }
+
+  existingEntryIds(ids: string[]): Set<string> {
+    if (ids.length === 0) return new Set();
+    const rows = this.db
+      .query<{ id: string }, string[]>(`SELECT id FROM knowledge_entries WHERE id IN (${ids.map(() => '?').join(',')})`)
+      .all(...ids);
+    return new Set(rows.map((r) => r.id));
+  }
+
+  insertUsage(entryId: string, segmentId: number, helped: boolean | null): void {
+    this.db.run('INSERT INTO knowledge_usage (entry_id, segment_id, helped, at) VALUES (?, ?, ?, ?)', [
+      entryId,
+      segmentId,
+      helped === null ? null : Number(helped),
+      now(),
+    ]);
+  }
+
+  getSegment(id: number): StoredSegment | null {
+    const row = this.db
+      .query<
+        {
+          id: number;
+          project_id: string;
+          agent: string;
+          agent_session_id: string;
+          host: string;
+          seq: number;
+          started_at: string;
+          ended_at: string;
+          activity_source: 'log' | 'coarse';
+          summary: string;
+        },
+        [number]
+      >(
+        `SELECT g.id, s.project_id, s.agent, s.agent_session_id, s.host, g.seq, g.started_at, g.ended_at,
+                g.activity_source, g.summary
+         FROM segments g JOIN sessions s ON s.id = g.session_id WHERE g.id = ?`,
+      )
+      .get(id);
+    if (!row) return null;
+    return {
+      id: row.id,
+      projectId: row.project_id,
+      agent: row.agent,
+      agentSessionId: row.agent_session_id,
+      host: row.host,
+      seq: row.seq,
+      startedAt: row.started_at,
+      endedAt: row.ended_at,
+      activitySource: row.activity_source,
+      summary: row.summary,
+      items: this.db
+        .query<{ text: string }, [number]>('SELECT text FROM work_items WHERE segment_id = ? ORDER BY pos')
+        .all(id)
+        .map((r) => r.text),
+      events: this.db
+        .query<{ at: string; actor: 'user' | 'agent' }, [number]>(
+          'SELECT at, actor FROM activity_events WHERE segment_id = ? ORDER BY at',
+        )
+        .all(id),
+      commits: this.db
+        .query<{ hash: string; subject: string; at: string }, [number]>(
+          'SELECT hash, subject, at FROM commits WHERE segment_id = ? ORDER BY at',
+        )
+        .all(id),
+      files: this.db
+        .query<{ path: string }, [number]>('SELECT path FROM segment_files WHERE segment_id = ?')
+        .all(id)
+        .map((r) => r.path),
+    };
+  }
+
+  pendingCandidates(): PendingCandidate[] {
+    return this.db
+      .query<
+        {
+          id: number;
+          segment_id: number;
+          project_id: string;
+          scope: 'project' | 'global';
+          kind: 'trap' | 'fact';
+          title: string;
+          symptoms: string;
+          cause: string;
+          fix: string;
+          tags: string;
+        },
+        []
+      >(
+        `SELECT c.id, c.segment_id, s.project_id, c.scope, c.kind, c.title, c.symptoms, c.cause, c.fix, c.tags
+         FROM knowledge_candidates c
+         JOIN segments g ON g.id = c.segment_id JOIN sessions s ON s.id = g.session_id
+         WHERE c.status = 'pending' ORDER BY c.id`,
+      )
+      .all()
+      .map((r) => ({
+        id: r.id,
+        segmentId: r.segment_id,
+        projectId: r.project_id,
+        scope: r.scope,
+        kind: r.kind,
+        title: r.title,
+        symptoms: JSON.parse(r.symptoms),
+        cause: r.cause,
+        fix: r.fix,
+        tags: JSON.parse(r.tags),
+      }));
+  }
+}
+
+/** Открывает БД, включает WAL и внешние ключи, применяет недостающие миграции. */
+export function openStore(path: string): SqliteStore {
+  const db = new Database(path, { create: true });
+  db.run('PRAGMA journal_mode = WAL');
+  db.run('PRAGMA foreign_keys = ON');
+  db.run('CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)');
+  const applied = db.query<{ v: number | null }, []>('SELECT MAX(version) AS v FROM schema_migrations').get()?.v ?? 0;
+  MIGRATIONS.slice(applied).forEach((sql, i) => {
+    db.transaction(() => {
+      db.run(sql);
+      db.run('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)', [applied + i + 1, now()]);
+    })();
+  });
+  return new SqliteStore(db);
+}

@@ -26,11 +26,11 @@ cd ~/dev/tools/chronicle && bun install && bun run link   # chronicle в ~/.loca
 ## 2. Claude Code
 
 - Хук завершения сессии — содержимое `integrations/claude-code/settings.json` добавить в `~/.claude/settings.json`. Итог сессии формируется при любом её завершении: `/clear` (новая сессия), выход, `/logout`.
-- Скил recall: `ln -s ~/dev/tools/chronicle/integrations/skills/recall ~/.claude/skills/recall` (заменяет прежнюю копию из pi-chronicle; прежний `learn` больше не нужен — знания извлекаются при завершении сессии).
+- Скил recall: `ln -s ~/dev/tools/chronicle/integrations/skills/recall ~/.claude/skills/recall`. Отдельного `learn` нет — знания извлекаются при завершении сессии.
 
 ## 3. pi
 
-В `~/.pi/agent/settings.json` → `packages`: заменить `../../dev/tools/pi-chronicle` на `../../dev/tools/chronicle/integrations/pi` (на сервере — абсолютный путь `/srv/chronicle/integrations/pi`). Пакет даёт `/finish` (`/finish exit` — с выходом) и скил recall.
+В `~/.pi/agent/settings.json` → `packages`: добавить `../../dev/tools/chronicle/integrations/pi` (на сервере — абсолютный путь `/srv/chronicle/integrations/pi`). Пакет даёт `/finish` (`/finish exit` — с выходом) и скил recall.
 
 В глобальные правила агента (`~/.pi/agent/AGENTS.md`) — раздел о chronicle: когда вызывать recall, как формируется итог сессии.
 

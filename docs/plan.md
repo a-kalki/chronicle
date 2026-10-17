@@ -34,7 +34,7 @@
 
 - [x] Деплой на сервер под pm2, токены, бэкап БД (контракт server-ops), health-check, nginx + HTTPS (`docs/deploy.md`)
 - [x] Клиенты на ноутбуке и сервере смотрят в один сервис
-- [x] Импорт из pi-chronicle (`scripts/import-pi-chronicle.ts`): 30 ловушек/фактов из 53 записей, 54 сессии worklog
+- [x] Импорт из pi-chronicle: 30 ловушек/фактов из 53 записей, 54 сессии worklog; pi-chronicle удалён
 - [x] Подключение агентов: Claude Code и pi на ноутбуке, pi на сервере (`docs/install.md`)
 
 ## Этап 5. MCP

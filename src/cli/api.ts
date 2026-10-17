@@ -53,6 +53,12 @@ export class ApiClient {
     return true;
   }
 
+  /** Импорт отобранных записей из прежних систем (мимо курирования) */
+  async importEntries(entries: unknown[]): Promise<{ imported: string[]; skipped: string[] }> {
+    const res = await this.request('/v1/import/entries', { method: 'POST', body: JSON.stringify({ entries }) });
+    return (await this.ok(res)).json() as Promise<{ imported: string[]; skipped: string[] }>;
+  }
+
   private async ok(res: Response): Promise<Response> {
     if (!res.ok) throw new Error(`chronicle: HTTP ${res.status} ${await res.text()}`);
     return res;

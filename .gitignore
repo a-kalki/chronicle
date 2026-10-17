@@ -5,3 +5,4 @@ node_modules/
 data/
 db-backups/
 chronicle.server.json
+import/

@@ -92,4 +92,22 @@ describe('HTTP API /v1', () => {
   it('неизвестный маршрут — 404', async () => {
     expect((await call('/v1/nope')).status).toBe(404);
   });
+
+  it('POST /v1/import/entries импортирует записи, нарушение схемы — 422', async () => {
+    const entry = {
+      id: 'R-x',
+      project: null,
+      kind: 'fact',
+      title: 't',
+      symptoms: [],
+      cause: 'c',
+      fix: 'f',
+      tags: [],
+      note: 'pi-chronicle: fact',
+    };
+    const ok = await call('/v1/import/entries', { method: 'POST', body: JSON.stringify({ entries: [entry] }) });
+    expect(((await ok.json()) as { imported: string[] }).imported).toEqual(['R-x']);
+    const bad = await call('/v1/import/entries', { method: 'POST', body: JSON.stringify({ entries: [{}] }) });
+    expect(bad.status).toBe(422);
+  });
 });

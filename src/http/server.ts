@@ -1,5 +1,6 @@
 /** HTTP API /v1 — тонкий адаптер над use case'ами. */
 import * as v from 'valibot';
+import { importEntries } from '../app/import-entries.ts';
 import { getEntry, recordUsage, searchKnowledge } from '../app/knowledge.ts';
 import type { Store } from '../app/store.ts';
 import { submitReport } from '../app/submit-report.ts';
@@ -36,6 +37,11 @@ export function createHandler({ store, tokens, onCandidates }: HandlerDeps): (re
       if (!res.ok) return json({ issues: res.issues }, 422);
       if (res.candidates > 0) onCandidates?.();
       return json(res, res.duplicate ? 200 : 202);
+    }
+
+    if (req.method === 'POST' && path === '/v1/import/entries') {
+      const res = importEntries(store, await req.json().catch(() => undefined));
+      return res.ok ? json(res) : json({ issues: res.issues }, 422);
     }
 
     if (req.method === 'GET' && path === '/v1/knowledge/search') {

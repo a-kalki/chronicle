@@ -30,7 +30,9 @@ cd ~/dev/tools/chronicle && bun install && bun run link   # chronicle в ~/.loca
 
 ## 3. pi
 
-В `~/.pi/agent/settings.json` → `packages`: заменить `../../dev/tools/pi-chronicle` на `../../dev/tools/chronicle/integrations/pi`. Пакет даёт `/finish` (`/finish exit` — с выходом) и скил recall.
+В `~/.pi/agent/settings.json` → `packages`: заменить `../../dev/tools/pi-chronicle` на `../../dev/tools/chronicle/integrations/pi` (на сервере — абсолютный путь `/srv/chronicle/integrations/pi`). Пакет даёт `/finish` (`/finish exit` — с выходом) и скил recall.
+
+В глобальные правила агента (`~/.pi/agent/AGENTS.md`) — раздел о chronicle: когда вызывать recall, как формируется итог сессии.
 
 ## 4. agy
 

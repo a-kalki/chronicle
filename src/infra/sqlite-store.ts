@@ -1,9 +1,56 @@
 import { Database } from 'bun:sqlite';
 import type { SessionReport } from '../../contract/v1.ts';
-import type { PendingCandidate, ProjectRef, Store, StoredSegment } from '../app/store.ts';
+import type { KnowledgeEntry, NewEntry, PendingCandidate, ProjectRef, Store, StoredSegment } from '../app/store.ts';
 import { MIGRATIONS } from './migrations.ts';
 
 const now = () => new Date().toISOString();
+
+interface EntryRow {
+  id: string;
+  project_id: string | null;
+  kind: 'trap' | 'fact';
+  title: string;
+  symptoms: string;
+  cause: string;
+  fix: string;
+  tags: string;
+  status: 'active' | 'archived';
+  found: number;
+  opened: number;
+  helped: number;
+  not_helped: number;
+  last_used_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Запись со счётчиками пользы из knowledge_usage. */
+const ENTRY_SELECT = `
+  SELECT e.*,
+    (SELECT COUNT(*) FROM knowledge_usage u WHERE u.entry_id = e.id AND u.helped = 1) AS helped,
+    (SELECT COUNT(*) FROM knowledge_usage u WHERE u.entry_id = e.id AND u.helped = 0) AS not_helped
+  FROM knowledge_entries e`;
+
+function toEntry(r: EntryRow): KnowledgeEntry {
+  return {
+    id: r.id,
+    projectId: r.project_id,
+    kind: r.kind,
+    title: r.title,
+    symptoms: JSON.parse(r.symptoms),
+    cause: r.cause,
+    fix: r.fix,
+    tags: JSON.parse(r.tags),
+    status: r.status,
+    found: r.found,
+    opened: r.opened,
+    helped: r.helped,
+    notHelped: r.not_helped,
+    lastUsedAt: r.last_used_at,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
 
 function slugify(name: string): string {
   return (
@@ -125,13 +172,51 @@ export class SqliteStore implements Store {
     return new Set(rows.map((r) => r.id));
   }
 
-  insertUsage(entryId: string, segmentId: number, helped: boolean | null): void {
+  insertUsage(entryId: string, segmentId: number | null, helped: boolean | null): void {
+    const at = now();
     this.db.run('INSERT INTO knowledge_usage (entry_id, segment_id, helped, at) VALUES (?, ?, ?, ?)', [
       entryId,
       segmentId,
       helped === null ? null : Number(helped),
-      now(),
+      at,
     ]);
+    this.db.run('UPDATE knowledge_entries SET last_used_at = ? WHERE id = ?', [at, entryId]);
+  }
+
+  insertEntry(e: NewEntry): void {
+    const at = now();
+    this.db.run(
+      `INSERT INTO knowledge_entries (id, project_id, kind, title, symptoms, cause, fix, tags, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [e.id, e.projectId, e.kind, e.title, JSON.stringify(e.symptoms), e.cause, e.fix, JSON.stringify(e.tags), at, at],
+    );
+  }
+
+  archiveEntry(id: string): void {
+    this.db.run("UPDATE knowledge_entries SET status = 'archived', updated_at = ? WHERE id = ?", [now(), id]);
+  }
+
+  activeEntries(projectId: string | null): KnowledgeEntry[] {
+    return this.db
+      .query<EntryRow, [string | null]>(
+        `${ENTRY_SELECT} WHERE e.status = 'active' AND (e.project_id IS NULL OR e.project_id = ?)`,
+      )
+      .all(projectId)
+      .map(toEntry);
+  }
+
+  getEntry(id: string): KnowledgeEntry | null {
+    const row = this.db.query<EntryRow, [string]>(`${ENTRY_SELECT} WHERE e.id = ?`).get(id);
+    return row ? toEntry(row) : null;
+  }
+
+  markFound(ids: string[]): void {
+    const stmt = this.db.prepare('UPDATE knowledge_entries SET found = found + 1 WHERE id = ?');
+    for (const id of ids) stmt.run(id);
+  }
+
+  markOpened(id: string): void {
+    this.db.run('UPDATE knowledge_entries SET opened = opened + 1, last_used_at = ? WHERE id = ?', [now(), id]);
   }
 
   getSegment(id: number): StoredSegment | null {

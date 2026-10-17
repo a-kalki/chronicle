@@ -148,6 +148,8 @@ chronicle/
   src/cli/         # клиент chronicle + outbox
   contract/        # valibot-схемы: SessionReport, ExtractResult; генерация JSON Schema
   prompts/         # общий промпт выжимки для всех агентов
-  adapters/        # claude-code, pi, agy
+  src/adapters/    # адаптеры агентов (claude-code, pi)
+  src/finish/      # общая часть /finish: состояние сессий, коммиты, сборка отчёта
+  integrations/    # подключение к агентам: хук Claude Code, pi-пакет, скил recall
   docs/            # spec.md, agent-contract.md, plan.md
 ```

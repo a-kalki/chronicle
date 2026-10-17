@@ -1,0 +1,18 @@
+{
+  "name": "chronicle-pi",
+  "version": "0.1.0",
+  "description": "Интеграция pi с chronicle: /finish и скил recall",
+  "keywords": [
+    "pi-package"
+  ],
+  "private": true,
+  "type": "module",
+  "pi": {
+    "extensions": [
+      "./extensions/finish.ts"
+    ],
+    "skills": [
+      "./skills/recall"
+    ]
+  }
+}

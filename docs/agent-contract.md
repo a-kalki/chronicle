@@ -63,8 +63,14 @@
 
 ## Текущие агенты
 
+✅ — проверено на живой сессии; ⏸ — не подключён.
+
 | Агент | Выжимка (A3) | Активность (A4) | `/finish` |
 |---|---|---|---|
-| Claude Code | `claude -p --model haiku --resume <id> --fork-session --output-format json --json-schema <schema>` | JSONL `~/.claude/projects/<проект>/<id>.jsonl` | slash-команда / скил |
-| pi | `pi -p --fork <id>` + валидация JSON адаптером | JSONL `~/.pi/agent/sessions/` | расширение (pi-chronicle → тонкий адаптер) |
-| agy | `agy -p --conversation <id> --json-schema <schema>` (форка нет — ход дописывается в диалог) | **уточнить** после первого запуска; до тех пор `coarse` | **уточнить** механизм команд (плагин) |
+| Claude Code ✅ | `claude -p --model haiku --resume <id> --fork-session --no-session-persistence --tools "" --output-format json --json-schema <schema>`, ответ в `structured_output` | JSONL `~/.claude/projects/<проект>/<id>.jsonl` | хук `SessionEnd` (`/clear`, выход) |
+| pi ✅ | `pi -p --fork <файл> --session-dir <временный> --no-tools --model <m>`, схема в промпте (`--fork` несовместим с `--no-session`) | JSONL `~/.pi/agent/sessions/` | расширение `integrations/pi` (`/finish`) |
+| agy ⏸ | `agy -p --conversation <id> --json-schema <schema>` (форка нет — ход дописывается в диалог) | **уточнить** после авторизации agy | **уточнить**; `agy plugin import` умеет импортировать плагины Claude |
+
+## Защита от рекурсии
+
+Неинтерактивный запуск агента для выжимки сам завершается как сессия — и его хук завершения снова вызвал бы `chronicle finish`. Адаптер ставит дочернему процессу `CHRONICLE_EXTRACT=1`; при этой переменной `chronicle finish` ничего не делает.

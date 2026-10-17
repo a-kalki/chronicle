@@ -11,7 +11,8 @@
     "test": "bun test",
     "lint": "bunx biome check .",
     "typecheck": "bunx tsc --noEmit",
-    "check": "bun run lint && bun run typecheck && bun test"
+    "check": "bun run lint && bun run typecheck && bun test",
+    "link": "mkdir -p ~/.local/bin && ln -sf \"$PWD/src/cli/main.ts\" ~/.local/bin/chronicle && echo \"chronicle → ~/.local/bin/chronicle\""
   },
   "dependencies": {
     "@valibot/to-json-schema": "^1.8.0",

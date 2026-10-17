@@ -24,10 +24,11 @@
 
 ## Этап 3. Адаптеры
 
-- [ ] Общий хелпер `chronicle finish`: коммиты за интервал, сборка отчёта, watermark
-- [ ] Claude Code: разбор JSONL, `/finish`, скил recall через CLI
-- [ ] pi: pi-chronicle → тонкий адаптер (`/finish`, recall)
-- [ ] agy: выжимка; источник активности и механизм команды — исследовать, до тех пор `coarse`
+- [x] Общий хелпер `chronicle finish`: коммиты за интервал, сборка отчёта, watermark, фон, режим хука
+- [x] Claude Code: разбор JSONL, хук `SessionEnd`, скил recall через CLI
+- [x] pi: пакет `integrations/pi` (`/finish`, recall) вместо pi-chronicle
+- [ ] agy: отложено — agy не авторизован, формат логов и ID диалога не проверить; ждёт решения пользователя
+- [ ] Подключение агентов на машинах (`docs/install.md`) — после деплоя
 
 ## Этап 4. Миграция и деплой
 

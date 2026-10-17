@@ -10,6 +10,7 @@ describe('parseServerConfig', () => {
       tokens: ['t'],
       idleGapMinutes: 30,
       archiveAfterDays: 120,
+      curateIntervalSeconds: 300,
       llm: { model: 'deepseek/deepseek-flash', apiKeyEnv: 'DEEPSEEK_API_KEY' },
     });
   });

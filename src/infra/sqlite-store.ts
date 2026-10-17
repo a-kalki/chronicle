@@ -1,6 +1,15 @@
 import { Database } from 'bun:sqlite';
 import type { SessionReport } from '../../contract/v1.ts';
-import type { KnowledgeEntry, NewEntry, PendingCandidate, ProjectRef, Store, StoredSegment } from '../app/store.ts';
+import type {
+  CandidateState,
+  HistoryItem,
+  KnowledgeEntry,
+  NewEntry,
+  PendingCandidate,
+  ProjectRef,
+  Store,
+  StoredSegment,
+} from '../app/store.ts';
 import { MIGRATIONS } from './migrations.ts';
 
 const now = () => new Date().toISOString();
@@ -172,8 +181,7 @@ export class SqliteStore implements Store {
     return new Set(rows.map((r) => r.id));
   }
 
-  insertUsage(entryId: string, segmentId: number | null, helped: boolean | null): void {
-    const at = now();
+  insertUsage(entryId: string, segmentId: number | null, helped: boolean | null, at = now()): void {
     this.db.run('INSERT INTO knowledge_usage (entry_id, segment_id, helped, at) VALUES (?, ?, ?, ?)', [
       entryId,
       segmentId,
@@ -309,6 +317,81 @@ export class SqliteStore implements Store {
         fix: r.fix,
         tags: JSON.parse(r.tags),
       }));
+  }
+
+  candidate(id: number): CandidateState | null {
+    const row = this.db
+      .query<
+        {
+          status: CandidateState['status'];
+          entry_id: string | null;
+          decision_note: string | null;
+          attempts: number;
+          last_error: string | null;
+        },
+        [number]
+      >('SELECT status, entry_id, decision_note, attempts, last_error FROM knowledge_candidates WHERE id = ?')
+      .get(id);
+    return row
+      ? {
+          status: row.status,
+          entryId: row.entry_id,
+          decisionNote: row.decision_note,
+          attempts: row.attempts,
+          lastError: row.last_error,
+        }
+      : null;
+  }
+
+  decideCandidate(id: number, status: 'created' | 'merged' | 'discarded', entryId: string | null, note: string): void {
+    this.db.run(
+      `UPDATE knowledge_candidates
+       SET status = ?, entry_id = ?, decision_note = ?, decided_at = ?, attempts = attempts + 1, last_error = NULL
+       WHERE id = ?`,
+      [status, entryId, note, now(), id],
+    );
+  }
+
+  failCandidate(id: number, error: string): void {
+    this.db.run('UPDATE knowledge_candidates SET attempts = attempts + 1, last_error = ? WHERE id = ?', [error, id]);
+  }
+
+  updateEntry(id: string, e: Omit<NewEntry, 'id'>): void {
+    this.db.run(
+      `UPDATE knowledge_entries
+       SET project_id = ?, kind = ?, title = ?, symptoms = ?, cause = ?, fix = ?, tags = ?, updated_at = ?
+       WHERE id = ?`,
+      [e.projectId, e.kind, e.title, JSON.stringify(e.symptoms), e.cause, e.fix, JSON.stringify(e.tags), now(), id],
+    );
+  }
+
+  addHistory(entryId: string, candidateId: number | null, action: HistoryItem['action'], note: string): void {
+    this.db.run('INSERT INTO knowledge_history (entry_id, at, candidate_id, action, note) VALUES (?, ?, ?, ?, ?)', [
+      entryId,
+      now(),
+      candidateId,
+      action,
+      note,
+    ]);
+  }
+
+  entryHistory(entryId: string): HistoryItem[] {
+    return this.db
+      .query<{ at: string; candidate_id: number | null; action: HistoryItem['action']; note: string }, [string]>(
+        'SELECT at, candidate_id, action, note FROM knowledge_history WHERE entry_id = ? ORDER BY rowid',
+      )
+      .all(entryId)
+      .map((r) => ({ at: r.at, candidateId: r.candidate_id, action: r.action, note: r.note }));
+  }
+
+  staleEntryIds(cutoff: string): string[] {
+    return this.db
+      .query<{ id: string }, [string]>(
+        `SELECT id FROM knowledge_entries
+         WHERE status = 'active' AND COALESCE(last_used_at, created_at) < ? ORDER BY id`,
+      )
+      .all(cutoff)
+      .map((r) => r.id);
   }
 }
 

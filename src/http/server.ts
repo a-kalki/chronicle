@@ -7,6 +7,8 @@ import { submitReport } from '../app/submit-report.ts';
 export interface HandlerDeps {
   store: Store;
   tokens: string[];
+  /** Сигнал о новых кандидатах в знания (запуск курирования) */
+  onCandidates?: () => void;
 }
 
 const json = (body: unknown, status = 200) => Response.json(body, { status });
@@ -14,7 +16,7 @@ const empty = (status: number) => new Response(null, { status });
 
 const UsageBody = v.object({ helped: v.nullable(v.boolean()) });
 
-export function createHandler({ store, tokens }: HandlerDeps): (req: Request) => Promise<Response> {
+export function createHandler({ store, tokens, onCandidates }: HandlerDeps): (req: Request) => Promise<Response> {
   const authorized = (req: Request) => {
     const header = req.headers.get('authorization') ?? '';
     return tokens.some((t) => header === `Bearer ${t}`);
@@ -32,6 +34,7 @@ export function createHandler({ store, tokens }: HandlerDeps): (req: Request) =>
       if (body === undefined) return json({ error: 'невалидный JSON' }, 400);
       const res = submitReport(store, body);
       if (!res.ok) return json({ issues: res.issues }, 422);
+      if (res.candidates > 0) onCandidates?.();
       return json(res, res.duplicate ? 200 : 202);
     }
 

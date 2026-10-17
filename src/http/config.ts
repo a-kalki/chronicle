@@ -11,11 +11,14 @@ const ServerConfig = v.object({
   idleGapMinutes: v.optional(PositiveInt, 30),
   /** Через сколько дней без использования запись знаний уходит в архив */
   archiveAfterDays: v.optional(PositiveInt, 120),
+  /** Период фонового курирования (дополнительно к сигналу после каждого отчёта) */
+  curateIntervalSeconds: v.optional(PositiveInt, 300),
   /** LLM курирования знаний: <провайдер>/<модель>; ключ — из переменной apiKeyEnv */
   llm: v.optional(
     v.object({
       model: v.optional(v.string(), 'deepseek/deepseek-flash'),
       apiKeyEnv: v.optional(v.string(), 'DEEPSEEK_API_KEY'),
+      baseUrl: v.optional(v.pipe(v.string(), v.url())),
     }),
     {},
   ),

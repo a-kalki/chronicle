@@ -106,4 +106,8 @@ export const MIGRATIONS: string[] = [
     at TEXT NOT NULL
   );
   `,
+  `
+  ALTER TABLE knowledge_candidates ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE knowledge_candidates ADD COLUMN last_error TEXT;
+  `,
 ];

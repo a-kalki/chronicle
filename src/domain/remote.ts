@@ -4,8 +4,8 @@
  */
 export function normalizeRemote(url: string): string | null {
   const raw = url.trim();
-  // scp-like: git@host:owner/repo.git
-  const scp = raw.match(/^[\w.-]+@([\w.-]+):(?!\d+\/)(.+)$/);
+  // scp-like: git@host:owner/repo.git; пользователь необязателен (SSH-алиас: github-kalki:owner/repo.git)
+  const scp = raw.match(/^(?:[\w.-]+@)?([\w.-]+):(?!\d+\/)(?!\/)(.+)$/);
   // URL: https://host/owner/repo, ssh://git@host:22/owner/repo
   const full = raw.match(/^[a-z+]+:\/\/(?:[^@/]+@)?([\w.-]+)(?::\d+)?\/(.+)$/i);
   const match = scp ?? full;

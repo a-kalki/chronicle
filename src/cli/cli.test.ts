@@ -89,6 +89,13 @@ describe('detectProject', () => {
     expect(detectProject(repo)).toEqual({ name: 'u7-school', path: repo, remote: 'github.com/nurgeo/u7-school' });
   });
 
+  it('SSH-алиас хоста в origin раскрывается в настоящий хост', () => {
+    git('remote', 'set-url', 'origin', 'github-kalki:a-kalki/u7-school.git');
+    const resolve = (host: string) => (host === 'github-kalki' ? 'github.com' : host);
+    expect(detectProject(repo, resolve).remote).toBe('github.com/a-kalki/u7-school');
+    git('remote', 'set-url', 'origin', 'git@github.com:NurGeo/u7-school.git');
+  });
+
   it('вне git — текущий каталог без remote', () => {
     expect(detectProject(root)).toEqual({ name: root.split('/').pop() as string, path: root });
   });

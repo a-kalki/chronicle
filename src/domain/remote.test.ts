@@ -11,6 +11,10 @@ describe('normalizeRemote', () => {
     expect(normalizeRemote('https://user:token@GitHub.com/NurGeo/u7-school')).toBe(expected);
   });
 
+  it('понимает scp-формат без пользователя (SSH-алиас хоста)', () => {
+    expect(normalizeRemote('github-kalki:a-kalki/u7-school.git')).toBe('github-kalki/a-kalki/u7-school');
+  });
+
   it('сохраняет вложенные группы (gitlab)', () => {
     expect(normalizeRemote('git@gitlab.com:org/team/repo.git')).toBe('gitlab.com/org/team/repo');
   });

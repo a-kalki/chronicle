@@ -74,6 +74,8 @@ export interface Store {
   /** Проект по remote, иначе по host+path (запоминает новые связки найденного); null — не найден. */
   matchProject(ref: ProjectRef): string | null;
   createProject(ref: ProjectRef): string;
+  /** Проект по нормализованному remote, без побочных эффектов */
+  findProjectByRemote(remote: string): string | null;
   findSegmentId(agent: string, agentSessionId: string, seq: number): number | null;
   /** Сохраняет сегмент целиком (сессия, активность, результат, кандидаты); возвращает ID сегмента. */
   insertSegment(projectId: string, report: SessionReport): number;

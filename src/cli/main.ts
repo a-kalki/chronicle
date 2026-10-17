@@ -7,7 +7,7 @@ import * as v from 'valibot';
 import { extractResultJsonSchema } from '../../contract/json-schema.ts';
 import { SessionReport } from '../../contract/v1.ts';
 import { AGENT_NAMES, getAdapter } from '../adapters/index.ts';
-import type { KnowledgeEntry } from '../app/store.ts';
+import { formatEntry } from '../app/format.ts';
 import { runFinish } from '../finish/finish.ts';
 import { FinishState } from '../finish/state.ts';
 import { ApiClient } from './api.ts';
@@ -80,14 +80,6 @@ async function finish(config: ClientConfig, flags: Record<string, string>, send:
   });
   stamp(`finish ${agent}/${sessionId}: ${JSON.stringify(res)}`);
   if (res.status === 'failed') process.exit(1);
-}
-
-function formatEntry(e: KnowledgeEntry): string {
-  const lines = [`# ${e.title}`, '', `- **${e.id}** (${e.kind}, ${e.projectId ?? 'global'})`];
-  if (e.symptoms.length > 0) lines.push('', '## Симптомы', ...e.symptoms.map((s) => `- \`${s}\``));
-  lines.push('', '## Причина', e.cause, '', '## Решение', e.fix);
-  if (e.tags.length > 0) lines.push('', `Теги: ${e.tags.join(', ')}`);
-  return lines.join('\n');
 }
 
 const formatFlush = (r: FlushResult) => `доставлено: ${r.delivered}, отклонено: ${r.rejected}, в очереди: ${r.pending}`;

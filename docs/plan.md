@@ -39,7 +39,7 @@
 
 ## Этап 5. MCP
 
-- [ ] MCP-эндпоинт только для чтения и учёта пользы: `knowledge_search`, `knowledge_get`, `knowledge_used`
+- [x] MCP-эндпоинт `/mcp` (Streamable HTTP) только для чтения и учёта пользы: `knowledge_search`, `knowledge_get`, `knowledge_used`; проверен клиентом Claude Code
 
 ## Потом
 

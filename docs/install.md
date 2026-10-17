@@ -34,6 +34,18 @@ cd ~/dev/tools/chronicle && bun install && bun run link   # chronicle в ~/.loca
 
 В глобальные правила агента (`~/.pi/agent/AGENTS.md`) — раздел о chronicle: когда вызывать recall, как формируется итог сессии.
 
+## MCP (для агентов с поддержкой MCP)
+
+`https://chronicle.u7-hub.kz/mcp` — Streamable HTTP, заголовок `Authorization: Bearer <токен>`. Инструменты: `knowledge_search` (дословный текст ошибки; `project_remote` — git remote текущего репо для записей проекта), `knowledge_get`, `knowledge_used`. Только чтение и учёт пользы: итоги сессий через MCP не принимаются.
+
+Claude Code (если нужен MCP вместо CLI):
+
+```bash
+claude mcp add --transport http chronicle https://chronicle.u7-hub.kz/mcp --header "Authorization: Bearer <токен>"
+```
+
+agy: `agy mcp add …` с теми же адресом и заголовком.
+
 ## 4. agy
 
 Не подключён: формат логов и способ получить ID диалога не проверены (agy не авторизован на машине разработки). См. docs/agent-contract.md.

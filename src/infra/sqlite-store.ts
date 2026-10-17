@@ -96,6 +96,14 @@ export class SqliteStore implements Store {
     return projectId;
   }
 
+  findProjectByRemote(remote: string): string | null {
+    return (
+      this.db
+        .query<{ project_id: string }, [string]>('SELECT project_id FROM project_remotes WHERE remote = ?')
+        .get(remote)?.project_id ?? null
+    );
+  }
+
   createProject(ref: ProjectRef): string {
     const base = slugify(ref.name);
     let id = base;

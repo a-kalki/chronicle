@@ -23,10 +23,20 @@ export function entryText(e: Pick<KnowledgeEntry, 'id' | 'title' | 'symptoms' | 
   return [e.id, e.title, ...e.symptoms, ...e.tags].join(' ');
 }
 
-/** Нечёткий поиск по активным записям проекта и общего scope; учитывает попадание в выдачу. */
+/** Нечёткий поиск из рабочего каталога агента: проект определяется по remote или host+path. */
 export function searchKnowledge(store: Store, query: SearchQuery): SearchHit[] {
-  const { q, limit = 10, minScore = 0.4 } = query;
-  const projectId = store.matchProject(query.project);
+  return searchEntries(store, { ...query, projectId: store.matchProject(query.project) });
+}
+
+/**
+ * Нечёткий поиск по активным записям проекта (null — только общие) и общего scope;
+ * учитывает попадание в выдачу.
+ */
+export function searchEntries(
+  store: Store,
+  query: { q: string; projectId: string | null; limit?: number; minScore?: number },
+): SearchHit[] {
+  const { q, projectId, limit = 10, minScore = 0.4 } = query;
 
   const hits = store
     .activeEntries(projectId)

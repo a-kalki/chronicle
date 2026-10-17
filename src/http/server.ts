@@ -4,6 +4,7 @@ import { importEntries } from '../app/import-entries.ts';
 import { getEntry, recordUsage, searchKnowledge } from '../app/knowledge.ts';
 import type { Store } from '../app/store.ts';
 import { submitReport } from '../app/submit-report.ts';
+import { handleMcp } from './mcp.ts';
 
 export interface HandlerDeps {
   store: Store;
@@ -29,6 +30,8 @@ export function createHandler({ store, tokens, onCandidates }: HandlerDeps): (re
 
     if (path === '/v1/health') return json({ ok: true });
     if (!authorized(req)) return json({ error: 'unauthorized' }, 401);
+
+    if (path === '/mcp') return handleMcp(store, req);
 
     if (req.method === 'POST' && path === '/v1/reports') {
       const body = await req.json().catch(() => undefined);

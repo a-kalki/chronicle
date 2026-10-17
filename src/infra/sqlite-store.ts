@@ -97,11 +97,17 @@ export class SqliteStore implements Store {
   }
 
   findProjectByRemote(remote: string): string | null {
-    return (
-      this.db
-        .query<{ project_id: string }, [string]>('SELECT project_id FROM project_remotes WHERE remote = ?')
-        .get(remote)?.project_id ?? null
-    );
+    const exact = this.db
+      .query<{ project_id: string }, [string]>('SELECT project_id FROM project_remotes WHERE remote = ?')
+      .get(remote);
+    if (exact) return exact.project_id;
+    const repoPath = remote.slice(remote.indexOf('/'));
+    const bySuffix = this.db
+      .query<{ project_id: string }, [string]>(
+        "SELECT DISTINCT project_id FROM project_remotes WHERE substr(remote, instr(remote, '/')) = ?",
+      )
+      .all(repoPath);
+    return bySuffix.length === 1 ? (bySuffix[0]?.project_id ?? null) : null;
   }
 
   createProject(ref: ProjectRef): string {

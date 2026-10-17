@@ -101,6 +101,13 @@ describe('MCP /mcp', () => {
     });
     expect(withProject.result?.content?.[0]?.text).toContain('K-school');
 
+    // SSH-алиас клиента сервер раскрыть не может — проект находится по владелец/репо
+    const viaAlias = await call('knowledge_search', {
+      query: 'шаг uuid снапшот',
+      project_remote: 'github-kalki:NurGeo/u7-school.git',
+    });
+    expect(viaAlias.result?.content?.[0]?.text).toContain('K-school');
+
     const globalOnly = await call('knowledge_search', { query: 'шаг uuid снапшот' });
     expect(globalOnly.result?.content?.[0]?.text).not.toContain('K-school');
 

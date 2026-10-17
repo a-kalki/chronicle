@@ -10,6 +10,8 @@ const ClientConfig = v.object({
   /** Имя машины-контура: laptop, kalki-server */
   host: v.pipe(v.string(), v.regex(/^[a-z0-9][a-z0-9-]*$/, 'host: ожидается slug')),
   outboxDir: v.string(),
+  /** Состояние finish по сессиям и лог фоновых запусков */
+  stateDir: v.string(),
   /** Дешёвая модель для выжимки по агентам (этап адаптеров) */
   extractModel: v.optional(v.record(v.string(), v.string()), {}),
 });
@@ -27,6 +29,7 @@ export function loadClientConfig(env: Record<string, string | undefined>): Clien
     token: env.CHRONICLE_TOKEN ?? file.token,
     host: env.CHRONICLE_HOST ?? file.host,
     outboxDir: env.CHRONICLE_OUTBOX ?? file.outboxDir ?? join(homedir(), '.local/state/chronicle/outbox'),
+    stateDir: env.CHRONICLE_STATE ?? file.stateDir ?? join(homedir(), '.local/state/chronicle'),
   };
   const res = v.safeParse(ClientConfig, merged);
   if (!res.success) {

@@ -18,7 +18,7 @@ function git(...args: string[]) {
 }
 
 // Асинхронный запуск: spawnSync заблокировал бы event loop, и сервер в этом же процессе не ответил бы
-async function cli(args: string[], opts: { url?: string; stdin?: string } = {}) {
+async function cli(args: string[], opts: { url?: string; stdin?: string; env?: Record<string, string> } = {}) {
   const proc = Bun.spawn(['bun', CLI, ...args], {
     cwd: repo,
     env: {
@@ -28,6 +28,8 @@ async function cli(args: string[], opts: { url?: string; stdin?: string } = {}) 
       CHRONICLE_HOST: 'laptop',
       CHRONICLE_OUTBOX: outbox,
       CHRONICLE_CONFIG: join(root, 'no-config.json'),
+      CHRONICLE_STATE: join(root, 'state'),
+      ...opts.env,
     },
     stdin: opts.stdin ? Buffer.from(opts.stdin) : 'ignore',
     stdout: 'pipe',
@@ -140,5 +142,24 @@ describe('CLI chronicle', () => {
   it('schema выводит JSON Schema выжимки', async () => {
     const res = await cli(['schema']);
     expect(JSON.parse(res.out).required).toContain('work');
+  });
+
+  it('finish внутри выжимки (CHRONICLE_EXTRACT) молча ничего не делает', async () => {
+    const res = await cli(['finish', '--agent', 'claude-code', '--session', 'x'], { env: { CHRONICLE_EXTRACT: '1' } });
+    expect(res).toEqual({ code: 0, out: '', err: '' });
+  });
+
+  it('finish с неизвестным агентом — ошибка со списком доступных', async () => {
+    const res = await cli(['finish', '--agent', 'nope', '--session', 'x']);
+    expect(res.code).toBe(1);
+    expect(res.err).toContain('claude-code');
+  });
+
+  it('finish --hook берёт session_id из stdin; неизвестная сессия — пропуск', async () => {
+    const res = await cli(['finish', '--agent', 'claude-code', '--hook'], {
+      stdin: JSON.stringify({ session_id: 'no-such-session', reason: 'clear' }),
+    });
+    expect(res.code).toBe(0);
+    expect(res.out).toContain('лог сессии не найден');
   });
 });

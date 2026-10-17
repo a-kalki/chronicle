@@ -6,7 +6,12 @@
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { AgentAdapter, ExtractOptions, SessionRead } from '../finish/adapter.ts';
+import {
+  type AgentAdapter,
+  COPIED_HISTORY_SLACK_MS,
+  type ExtractOptions,
+  type SessionRead,
+} from '../finish/adapter.ts';
 import { EXTRACT_TIMEOUT_MS, extractEnv, type Runner, runCommand } from './run.ts';
 
 interface LogLine {
@@ -59,12 +64,15 @@ export class PiAdapter implements AgentAdapter {
       .map((raw) => JSON.parse(raw) as LogLine);
     const from = typeof watermark === 'number' ? watermark : 0;
 
+    // Заголовок сессии — момент её создания: в форке всё, что старше, — скопированная история
+    const header = lines.find((l) => l.type === 'session');
+    const cutoff = header?.timestamp ? Date.parse(header.timestamp) - COPIED_HISTORY_SLACK_MS : 0;
     const events: SessionRead['events'] = [];
     for (const l of lines.slice(from)) {
       const actor = l.type === 'message' ? ACTORS[l.message?.role ?? ''] : undefined;
-      if (actor && l.timestamp) events.push({ at: l.timestamp, actor });
+      if (actor && l.timestamp && Date.parse(l.timestamp) >= cutoff) events.push({ at: l.timestamp, actor });
     }
-    const cwd = lines.find((l) => l.type === 'session')?.cwd ?? process.cwd();
+    const cwd = header?.cwd ?? process.cwd();
     return { cwd, source: 'log', events, watermark: lines.length };
   }
 

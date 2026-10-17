@@ -45,6 +45,22 @@ describe('PiAdapter.readSession', () => {
     expect(read?.events).toEqual([{ at: '2026-10-06T04:37:20.000Z', actor: 'agent' }]);
   });
 
+  it('форк: события старше заголовка сессии (с запасом в минуту) — скопированная история, отбрасываются', () => {
+    const forked = join(sessions, '--home-nur-dev-kalki-u7-school--', `2026-10-06T05-00-00-000Z_fork-1.jsonl`);
+    writeFileSync(
+      forked,
+      [
+        line({ type: 'session', id: 'fork-1', timestamp: '2026-10-06T05:00:00.000Z', cwd: '/proj' }),
+        msg('user', '2026-10-06T04:37:00.000Z'),
+        msg('assistant', '2026-10-06T04:37:10.000Z'),
+        msg('user', '2026-10-06T05:00:30.000Z'),
+      ].join(''),
+    );
+    expect(new PiAdapter(sessions).readSession('fork-1', null)?.events).toEqual([
+      { at: '2026-10-06T05:00:30.000Z', actor: 'user' },
+    ]);
+  });
+
   it('неизвестная сессия — null', () => {
     expect(new PiAdapter(sessions).readSession('nope', null)).toBeNull();
   });

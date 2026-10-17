@@ -15,6 +15,8 @@ import { join } from 'node:path';
 export interface SessionState {
   seq: number;
   watermark: unknown;
+  /** Итоги уже отправленных сегментов — чтобы выжимка продолжения не повторяла их */
+  summaries?: string[];
 }
 
 /** Дольше этого finish не идёт: выжимка ограничена таймаутом */

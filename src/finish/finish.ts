@@ -20,6 +20,21 @@ const EXTRACT_PROMPT = readFileSync(join(import.meta.dir, '../../prompts/extract
 const TRIVIAL_ACTIVE_MS = 60_000;
 /** Порог простоя для оценки «тривиальности» (не для учёта времени — он считается на сервере) */
 const TRIAGE_IDLE_MS = 30 * 60_000;
+/** Сколько итогов прошлых сегментов держать для выжимки продолжения */
+const SUMMARIES_KEPT = 10;
+
+/** Промпт выжимки; для продолжения сессии — с итогами уже отправленных сегментов */
+function extractPrompt(summaries: string[], startedAt: string): string {
+  if (summaries.length === 0) return EXTRACT_PROMPT;
+  return `${EXTRACT_PROMPT}
+## Это продолжение сессии
+
+Прошлые части этой сессии уже отправлены. Опиши только то, что сделано после них (новая часть началась около ${startedAt} UTC): не повторяй уже отправленные итоги и знания.
+
+Уже отправлено:
+${summaries.map((s) => `- ${s}`).join('\n')}
+`;
+}
 
 export interface FinishDeps {
   adapter: AgentAdapter;
@@ -37,11 +52,11 @@ export type FinishResult =
   | { status: 'skipped'; reason: string }
   | { status: 'failed'; reason: string };
 
-async function extractWithRetry(deps: FinishDeps, cwd: string): Promise<ExtractResult> {
+async function extractWithRetry(deps: FinishDeps, cwd: string, prompt: string): Promise<ExtractResult> {
   const { adapter, sessionId } = deps;
   const options = {
     model: deps.extractModel ?? adapter.defaultExtractModel,
-    prompt: EXTRACT_PROMPT,
+    prompt,
     schema: extractResultJsonSchema(),
     cwd,
   };
@@ -91,7 +106,8 @@ export async function runFinish(deps: FinishDeps): Promise<FinishResult> {
       return { status: 'skipped', reason: 'тривиальный сегмент' };
     }
 
-    const extract = await extractWithRetry(deps, read.cwd);
+    const summaries = prev?.summaries ?? [];
+    const extract = await extractWithRetry(deps, read.cwd, extractPrompt(summaries, startedAt));
     const seq = (prev?.seq ?? 0) + 1;
     const report = v.parse(SessionReport, {
       version: 1,
@@ -104,7 +120,12 @@ export async function runFinish(deps: FinishDeps): Promise<FinishResult> {
     });
 
     deps.outbox.enqueue(report);
-    state.save(adapter.name, sessionId, { seq, watermark: read.watermark });
+    const summary = [extract.work.summary, extract.work.items.join('; ')].filter(Boolean).join(': ');
+    state.save(adapter.name, sessionId, {
+      seq,
+      watermark: read.watermark,
+      summaries: [...summaries, summary].slice(-SUMMARIES_KEPT),
+    });
     return { status: 'reported', seq, flush: await deps.outbox.flush(deps.send) };
   } catch (e) {
     return { status: 'failed', reason: e instanceof Error ? e.message : String(e) };

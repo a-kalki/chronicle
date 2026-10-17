@@ -12,7 +12,7 @@ const extractOk = { work: { summary: 'Сделано', items: ['пункт'] }, 
 
 /** Фейковый адаптер: лог — список событий, watermark — число прочитанных. */
 function fakeAdapter(log: SessionRead['events'], extract: () => unknown = () => extractOk) {
-  const calls = { extract: 0 };
+  const calls = { extract: 0, prompts: [] as string[] };
   const adapter: AgentAdapter = {
     name: 'fake',
     defaultExtractModel: 'cheap',
@@ -20,8 +20,9 @@ function fakeAdapter(log: SessionRead['events'], extract: () => unknown = () => 
       const from = (watermark as number | null) ?? 0;
       return { cwd: tmpdir(), source: 'log', events: log.slice(from), watermark: log.length };
     },
-    async extract() {
+    async extract(_id, options) {
       calls.extract++;
+      calls.prompts.push(options.prompt);
       return extract();
     },
   };
@@ -79,6 +80,24 @@ describe('runFinish', () => {
     expect(second.session.seq).toBe(2);
     expect(second.session.startedAt).toBe(at(40));
     expect(second.activity.events).toHaveLength(2);
+  });
+
+  it('выжимка продолжения знает итоги прошлых сегментов и просит описать только новое', async () => {
+    const log = [...events];
+    let n = 0;
+    const { adapter, calls } = fakeAdapter(log, () => ({
+      work: { summary: n++ === 0 ? 'Сделан контракт' : 'Сделан CLI', items: ['пункт'] },
+      knowledge: [],
+      usage: [],
+    }));
+    await finish(adapter);
+    expect(calls.prompts[0]).not.toContain('Уже отправлено');
+
+    log.push({ at: at(40), actor: 'user' }, { at: at(45), actor: 'agent' });
+    await finish(adapter);
+    expect(calls.prompts[1]).toContain('Уже отправлено');
+    expect(calls.prompts[1]).toContain('Сделан контракт');
+    expect(state.load('fake', 's-1')?.summaries).toEqual(['Сделан контракт: пункт', 'Сделан CLI: пункт']);
   });
 
   it('без новой активности или без реплик пользователя — пропуск без выжимки', async () => {

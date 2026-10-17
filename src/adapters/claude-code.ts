@@ -2,10 +2,15 @@
  * Адаптер Claude Code. Лог: ~/.claude/projects/<каталог проекта>/<sessionId>.jsonl;
  * watermark — число обработанных полных строк.
  */
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import type { AgentAdapter, ExtractOptions, SessionRead } from '../finish/adapter.ts';
+import {
+  type AgentAdapter,
+  COPIED_HISTORY_SLACK_MS,
+  type ExtractOptions,
+  type SessionRead,
+} from '../finish/adapter.ts';
 import { EXTRACT_TIMEOUT_MS, extractEnv, type Runner, runCommand } from './run.ts';
 
 interface LogLine {
@@ -35,6 +40,8 @@ export class ClaudeCodeAdapter implements AgentAdapter {
   constructor(
     private readonly projectsDir = join(homedir(), '.claude/projects'),
     private readonly run: Runner = runCommand,
+    /** Время создания лога, мс: в форке всё, что старше, — скопированная история */
+    private readonly createdAtMs: (path: string) => number = (path) => statSync(path).birthtimeMs,
   ) {}
 
   private findLog(sessionId: string): string | null {
@@ -55,10 +62,11 @@ export class ClaudeCodeAdapter implements AgentAdapter {
     const lines = complete.map((raw) => JSON.parse(raw) as LogLine);
     const from = typeof watermark === 'number' ? watermark : 0;
 
+    const cutoff = this.createdAtMs(path) - COPIED_HISTORY_SLACK_MS;
     const events: SessionRead['events'] = [];
     for (const l of lines.slice(from)) {
       const actor = actorOf(l);
-      if (actor && l.timestamp) events.push({ at: l.timestamp, actor });
+      if (actor && l.timestamp && Date.parse(l.timestamp) >= cutoff) events.push({ at: l.timestamp, actor });
     }
     const cwd = lines.findLast((l) => l.cwd)?.cwd ?? process.cwd();
     return { cwd, source: 'log', events, watermark: lines.length };

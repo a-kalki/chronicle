@@ -40,7 +40,7 @@ describe('ClaudeCodeAdapter.readSession', () => {
   });
 
   it('находит лог по ID, размечает реплики пользователя и действия агента, пропускает служебное', () => {
-    const read = new ClaudeCodeAdapter(projects).readSession(ID, null);
+    const read = new ClaudeCodeAdapter(projects, undefined, () => 0).readSession(ID, null);
     expect(read?.cwd).toBe('/home/nur/dev/kalki/u7-school');
     expect(read?.events).toEqual([
       { at: '2026-10-17T05:00:00.000Z', actor: 'user' },
@@ -52,7 +52,7 @@ describe('ClaudeCodeAdapter.readSession', () => {
   });
 
   it('после watermark отдаёт только новые события; недописанная строка не учитывается', () => {
-    const adapter = new ClaudeCodeAdapter(projects);
+    const adapter = new ClaudeCodeAdapter(projects, undefined, () => 0);
     appendFileSync(
       file,
       line({ ...base, type: 'assistant', timestamp: '2026-10-17T05:02:00.000Z', message: { content: [] } }),
@@ -63,8 +63,14 @@ describe('ClaudeCodeAdapter.readSession', () => {
     expect(read?.watermark).toBe(7);
   });
 
+  it('форк: события старше создания лога (с запасом в минуту) — скопированная история, отбрасываются', () => {
+    const created = Date.parse('2026-10-17T05:01:30.000Z');
+    const read = new ClaudeCodeAdapter(projects, undefined, () => created).readSession(ID, null);
+    expect(read?.events).toEqual([{ at: '2026-10-17T05:01:00.000Z', actor: 'user' }]);
+  });
+
   it('неизвестная сессия — null', () => {
-    expect(new ClaudeCodeAdapter(projects).readSession('nope', null)).toBeNull();
+    expect(new ClaudeCodeAdapter(projects, undefined, () => 0).readSession('nope', null)).toBeNull();
   });
 });
 

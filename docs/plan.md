@@ -4,15 +4,15 @@
 
 ## Этап 1. Ядро и локальный сервис
 
-- [ ] Каркас: Bun, TypeScript strict, Biome, `bun test`
-- [ ] `contract/`: valibot-схемы `SessionReport` и `ExtractResult`, генерация JSON Schema (`@valibot/to-json-schema`), версия `v1`
-- [ ] Домен: нормализация git remote, идентификация проекта, активное время по меткам и порогу, схожесть записей (перенос из pi-chronicle)
-- [ ] SQLite: миграции, репозитории
-- [ ] Use case `submitReport`: валидация, идемпотентность по `(agent, sessionId, seq)`, одна транзакция
-- [ ] Use cases `search`, `get`, `recordUsage`
-- [ ] HTTP API `/v1` с bearer-токеном
-- [ ] CLI `chronicle`: `search`, `show`, `used`, `report submit`, `outbox`
-- [ ] Outbox: запись при недоступности, отправка при следующем вызове
+- [x] Каркас: Bun, TypeScript strict, Biome, `bun test`
+- [x] `contract/`: valibot-схемы `SessionReport` и `ExtractResult`, генерация JSON Schema (`@valibot/to-json-schema`), версия `v1`
+- [x] Домен: нормализация git remote, идентификация проекта, активное время по меткам и порогу, схожесть записей (перенос из pi-chronicle)
+- [x] SQLite: миграции, репозитории
+- [x] Use case `submitReport`: валидация, идемпотентность по `(agent, sessionId, seq)`, одна транзакция
+- [x] Use cases `search`, `get`, `recordUsage`
+- [x] HTTP API `/v1` с bearer-токеном
+- [x] CLI `chronicle`: `search`, `show`, `used`, `report submit`, `outbox`
+- [x] Outbox: запись при недоступности, отправка при следующем вызове
 
 ## Этап 2. Курирование знаний
 

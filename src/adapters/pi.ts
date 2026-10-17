@@ -12,27 +12,22 @@ import {
   type ExtractOptions,
   type SessionRead,
 } from '../finish/adapter.ts';
+import { parseModelJson } from './model-json.ts';
+import { abandonedBranchesText, type PiLine } from './pi-branches.ts';
 import { EXTRACT_TIMEOUT_MS, extractEnv, type Runner, runCommand } from './run.ts';
 
-interface LogLine {
-  type?: string;
-  timestamp?: string;
+interface LogLine extends PiLine {
   cwd?: string;
-  message?: { role?: string };
 }
 
 const ACTORS: Record<string, 'user' | 'agent'> = { user: 'user', assistant: 'agent', toolResult: 'agent' };
 
-/** JSON-объект из ответа модели: без ограждений markdown и текста вокруг */
-function parseJsonObject(text: string): unknown {
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-  if (start < 0 || end < start) throw new Error(`pi: в ответе нет JSON: ${text.slice(0, 300)}`);
-  try {
-    return JSON.parse(text.slice(start, end + 1));
-  } catch {
-    throw new Error(`pi: ответ не JSON: ${text.slice(0, 300)}`);
-  }
+/** Полные строки лога: последняя без перевода строки может дописываться прямо сейчас — её не берём */
+function readLines(path: string): LogLine[] {
+  return readFileSync(path, 'utf8')
+    .split('\n')
+    .slice(0, -1)
+    .map((raw) => JSON.parse(raw) as LogLine);
 }
 
 export class PiAdapter implements AgentAdapter {
@@ -57,11 +52,7 @@ export class PiAdapter implements AgentAdapter {
     const path = this.findLog(sessionId);
     if (!path) return null;
 
-    // Последняя строка без перевода строки может дописываться прямо сейчас — её не берём
-    const lines = readFileSync(path, 'utf8')
-      .split('\n')
-      .slice(0, -1)
-      .map((raw) => JSON.parse(raw) as LogLine);
+    const lines = readLines(path);
     const from = typeof watermark === 'number' ? watermark : 0;
 
     // Заголовок сессии — момент её создания: в форке всё, что старше, — скопированная история
@@ -80,15 +71,20 @@ export class PiAdapter implements AgentAdapter {
     const file = this.findLog(sessionId);
     if (!file) throw new Error(`pi: лог сессии ${sessionId} не найден`);
 
+    // Форк видит только активную ветку — брошенные через /tree без сводки добавляем текстом
+    const branches = abandonedBranchesText(readLines(file), typeof o.watermark === 'number' ? o.watermark : 0);
+    const branchesSection = branches
+      ? `\n\n## Брошенные ветки сессии\n\nКроме текущей ветки, в этой части сессии были ответвления (возврат назад через /tree); их нет в контексте выше — ниже их сжатый протокол. Часто каждое ответвление — отдельная задача. Выжимка описывает ВСЮ эту часть сессии: summary — общий итог, в items — по пункту на каждое ответвление, где что-то сделано (лимит 2–7 пунктов здесь не действует), ошибки из ответвлений — кандидаты в ловушки.\n\n${branches}`
+      : '';
     // pi не принимает JSON Schema флагом — схема уходит в промпт, ответ валидируется в finish
-    const prompt = `${o.prompt}\n\nОтвет — только JSON-объект по этой JSON Schema, без пояснений и без markdown-ограждений:\n${JSON.stringify(o.schema)}`;
+    const prompt = `${o.prompt}${branchesSection}\n\nОтвет — только JSON-объект по этой JSON Schema, без пояснений и без markdown-ограждений:\n${JSON.stringify(o.schema)}`;
     const sessionDir = mkdtempSync(join(tmpdir(), 'chronicle-pi-fork-'));
     try {
       const cmd = ['pi', '-p', '--fork', file, '--session-dir', sessionDir, '--no-tools', '--model', o.model, prompt];
       const env = extractEnv(['PI_SESSION_ID', 'PI_SESSION_FILE']);
       const res = await this.run(cmd, { cwd: o.cwd, env, timeoutMs: EXTRACT_TIMEOUT_MS });
       if (res.code !== 0) throw new Error(`pi: код ${res.code}: ${(res.stderr || res.stdout).slice(0, 300)}`);
-      return parseJsonObject(res.stdout);
+      return parseModelJson(res.stdout);
     } finally {
       rmSync(sessionDir, { recursive: true, force: true });
     }

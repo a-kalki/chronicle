@@ -76,6 +76,7 @@ describe('PiAdapter.readSession', () => {
       prompt: 'выжимка',
       schema: { type: 'object' },
       cwd: '/proj',
+      watermark: null,
     });
     expect(res).toEqual({ work: { summary: 'ок' } });
 
@@ -94,6 +95,35 @@ describe('PiAdapter.readSession', () => {
 
   it('extract: ответ без JSON — исключение', async () => {
     const adapter = new PiAdapter(sessions, async () => ({ code: 0, stdout: 'не могу', stderr: '' }));
-    expect(adapter.extract(ID, { model: 'm', prompt: 'p', schema: {}, cwd: '/proj' })).rejects.toThrow('JSON');
+    expect(adapter.extract(ID, { model: 'm', prompt: 'p', schema: {}, cwd: '/proj', watermark: null })).rejects.toThrow(
+      'JSON',
+    );
+  });
+
+  it('extract: брошенные ветки после watermark попадают в промпт отдельным разделом', async () => {
+    const branched = join(sessions, '--home-nur-dev-kalki-u7-school--', '2026-10-06T06-00-00-000Z_br-1.jsonl');
+    const m = (id: string, parentId: string | null, role: string, text: string) =>
+      line({ type: 'message', id, parentId, timestamp: '2026-10-06T06:00:10.000Z', message: { role, content: text } });
+    writeFileSync(
+      branched,
+      [
+        line({ type: 'session', id: 'br-1', timestamp: '2026-10-06T06:00:00.000Z', cwd: '/proj' }),
+        m('u1', null, 'user', 'начало'),
+        m('u2', 'u1', 'user', 'брошенная попытка'),
+        m('u3', 'u1', 'user', 'активная ветка'),
+      ].join(''),
+    );
+    const prompts: string[] = [];
+    const adapter = new PiAdapter(sessions, async (cmd) => {
+      prompts.push(cmd.at(-1) as string);
+      return { code: 0, stdout: '{}', stderr: '' };
+    });
+    const opts = { model: 'm', prompt: 'p', schema: {}, cwd: '/proj' };
+    await adapter.extract('br-1', { ...opts, watermark: null });
+    expect(prompts[0]).toContain('Брошенные ветки');
+    expect(prompts[0]).toContain('брошенная попытка');
+
+    await adapter.extract('br-1', { ...opts, watermark: 4 });
+    expect(prompts[1]).not.toContain('Брошенные ветки');
   });
 });

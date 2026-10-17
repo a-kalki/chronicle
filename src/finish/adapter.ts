@@ -26,6 +26,8 @@ export interface ExtractOptions {
   prompt: string;
   /** JSON Schema выжимки */
   schema: object;
+  /** Watermark начала сегмента (null — первый сегмент): адаптер может дополнить промпт тем, чего нет в форке */
+  watermark: unknown | null;
   cwd: string;
 }
 

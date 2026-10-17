@@ -75,7 +75,7 @@ describe('ClaudeCodeAdapter.readSession', () => {
 });
 
 describe('ClaudeCodeAdapter.extract', () => {
-  const options = { model: 'haiku', prompt: 'выжимка', schema: { type: 'object' }, cwd: '/proj' };
+  const options = { model: 'haiku', prompt: 'выжимка', schema: { type: 'object' }, cwd: '/proj', watermark: null };
 
   it('форк сессии без инструментов и без сохранения, ответ из structured_output', async () => {
     let call: { cmd: string[]; opts: RunOptions } | undefined;

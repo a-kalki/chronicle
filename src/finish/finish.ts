@@ -52,13 +52,19 @@ export type FinishResult =
   | { status: 'skipped'; reason: string }
   | { status: 'failed'; reason: string };
 
-async function extractWithRetry(deps: FinishDeps, cwd: string, prompt: string): Promise<ExtractResult> {
+async function extractWithRetry(
+  deps: FinishDeps,
+  cwd: string,
+  prompt: string,
+  watermark: unknown | null,
+): Promise<ExtractResult> {
   const { adapter, sessionId } = deps;
   const options = {
     model: deps.extractModel ?? adapter.defaultExtractModel,
     prompt,
     schema: extractResultJsonSchema(),
     cwd,
+    watermark,
   };
   let lastError = '';
   for (let attempt = 1; attempt <= 2; attempt++) {
@@ -107,7 +113,12 @@ export async function runFinish(deps: FinishDeps): Promise<FinishResult> {
     }
 
     const summaries = prev?.summaries ?? [];
-    const extract = await extractWithRetry(deps, read.cwd, extractPrompt(summaries, startedAt));
+    const extract = await extractWithRetry(
+      deps,
+      read.cwd,
+      extractPrompt(summaries, startedAt),
+      prev?.watermark ?? null,
+    );
     const seq = (prev?.seq ?? 0) + 1;
     const report = v.parse(SessionReport, {
       version: 1,

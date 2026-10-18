@@ -1,5 +1,6 @@
 import { existsSync, statSync } from 'node:fs';
-import { basename, dirname } from 'node:path';
+import { homedir } from 'node:os';
+import { basename, dirname, resolve } from 'node:path';
 import { normalizeRemote } from '../domain/remote.ts';
 
 export interface DetectedProject {
@@ -59,8 +60,15 @@ function existingDir(path: string): string {
 /**
  * Git-репозиторий, которому принадлежит путь; null — путь вне git или игнорируется своим репо
  * (~/.pi, ~/.claude в репо настроек домашнего каталога) — такой путь проекта не образует.
+ * Сам домашний каталог (запуск агента из ~, cd ~) о проекте ничего не говорит, даже если он репо:
+ * из ~ запускают общие задачи и работу вне каталогов проектов. Файлы его репо (~/.bashrc) — говорят.
  */
-export function findRepo(path: string, resolveHost: (host: string) => string = sshHostname): DetectedProject | null {
+export function findRepo(
+  path: string,
+  resolveHost: (host: string) => string = sshHostname,
+  home: string = homedir(),
+): DetectedProject | null {
+  if (resolve(path) === resolve(home)) return null;
   const root = git(existingDir(path), 'rev-parse', '--show-toplevel');
   if (!root) return null;
   // отслеживаемые файлы check-ignore не считает игнорируемыми, даже если они подходят под шаблон

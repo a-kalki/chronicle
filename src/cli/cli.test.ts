@@ -125,6 +125,12 @@ describe('findRepo', () => {
     rmSync(join(repo, '.gitignore'));
   });
 
+  it('домашний каталог сам проекта не даёт (запуск из ~, cd ~), файлы его репо — дают', () => {
+    expect(findRepo(repo, undefined, repo)).toBeNull();
+    expect(findRepo(`${repo}/`, undefined, repo)).toBeNull();
+    expect(findRepo(join(repo, '.bashrc'), undefined, repo)?.path).toBe(repo);
+  });
+
   it('repoResolver запоминает ответ по пути', () => {
     let calls = 0;
     const resolve = repoResolver((p) => {

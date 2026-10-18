@@ -127,9 +127,12 @@ describe('dayReport', () => {
     expect([r.totalMs, r.outcomes, r.commits]).toEqual([2 * HOUR, 1, 2]);
   });
 
-  it('активность вне дня обрезается', () => {
+  it('активность вне дня обрезается, эпизод начинается не раньше полуночи', () => {
     const late = segment({ startedAt: at(18), endedAt: at(26), events: events(at(18), at(26)), turns: [] });
     expect(dayReport(facts([late]), { day: '2026-10-17' }).totalMs).toBe(6 * HOUR);
+    const early = segment({ startedAt: at(-2), endedAt: at(1), events: events(at(-2), at(1)), turns: [] });
+    const r = dayReport(facts([early]), { day: '2026-10-17' });
+    expect(r.projects[0]?.episodes[0]?.start).toBe(Date.parse(at(0)));
   });
 
   it('формат: часы с параллельным временем, эпизоды с результатами и коммитами', () => {

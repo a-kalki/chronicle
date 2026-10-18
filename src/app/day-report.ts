@@ -78,14 +78,15 @@ function units(facts: Facts, idleGapMs: number): TurnUnit[] {
       segment,
       session: sessionKey(segment),
       turn,
-      at: starts[k] as number,
+      // ход, начатый накануне, в этом дне начинается с полуночи
+      at: Math.max(starts[k] as number, from),
       pieces: [] as Interval[],
     }));
     for (const piece of splitAt(clipped, starts)) {
       const k = starts.findLastIndex((t) => t <= piece.start);
       out[Math.max(k, 0)]?.pieces.push(piece);
     }
-    return out.filter((u) => u.pieces.length > 0 || (u.at >= from && u.at < to));
+    return out.filter((u) => u.pieces.length > 0 || (u.at > from && u.at < to));
   });
 }
 

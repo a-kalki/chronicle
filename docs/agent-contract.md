@@ -102,7 +102,7 @@ v1 сервис принимает и дальше (outbox старых клие
 | Агент | Выжимка (A3) | Активность (A4) | `/finish` |
 |---|---|---|---|
 | Claude Code ✅ | `claude -p --model haiku --resume <id> --fork-session --no-session-persistence --tools "" --output-format json --json-schema <schema>`, ответ в `structured_output` | JSONL `~/.claude/projects/<проект>/<id>.jsonl` | хук `SessionEnd` (`/clear`, выход) |
-| agy ⏸ | `agy -p --conversation <id> --model gemini-3.8-flash-low --effort low --disable-slash-commands --output-format json --json-schema <schema>`, ответ в `structured_output` (форка нет — ход дописывается в диалог) | JSONL `~/.gemini/antigravity-cli/brain/<id>/.system_generated/logs/transcript.jsonl` (ходы из `USER_EXPLICIT`, пути из `tool_calls`) | скил `/finish` (`chronicle finish --agent agy --session <id> --detach`) |
+| agy ✅ | `agy -p --conversation <id> --model gemini-3.8-flash-low --effort low --disable-slash-commands --output-format json --json-schema <schema>`, ответ в `structured_output` (форка нет — ход дописывается в диалог) | JSONL `~/.gemini/antigravity-cli/brain/<id>/.system_generated/logs/transcript.jsonl` (ходы из `USER_EXPLICIT`, пути из `tool_calls`) | скил `/finish` (`chronicle finish --agent agy --session <id> --detach`) |
 
 ## Защита от рекурсии
 

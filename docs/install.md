@@ -15,7 +15,7 @@ cd ~/dev/tools/chronicle && bun install && bun run link   # chronicle в ~/.loca
   "serverUrl": "https://<адрес сервиса>",
   "token": "<токен>",
   "host": "laptop",
-  "extractModel": { "claude-code": "haiku", "pi": "deepseek/deepseek-flash" }
+  "extractModel": { "claude-code": "haiku", "pi": "deepseek/deepseek-flash", "agy": "gemini-3.8-flash-low" }
 }
 ```
 
@@ -49,7 +49,9 @@ agy: `agy mcp add …` с теми же адресом и заголовком.
 
 ## 4. agy
 
-Не подключён: формат логов и способ получить ID диалога не проверены (agy не авторизован на машине разработки). См. docs/agent-contract.md.
+- Скил `/finish`: `ln -s ~/dev/tools/chronicle/integrations/agy/skills/finish ~/.gemini/config/skills/finish`
+- Скил recall: `ln -s ~/dev/tools/chronicle/integrations/skills/recall ~/.gemini/config/skills/recall`
+- Модель выжимки в `~/.config/chronicle/config.json`: `extractModel.agy: "gemini-3.8-flash-low"`. Выжимка выполняется неинтерактивно с вызовом `agy -p`.
 
 ## Диагностика
 

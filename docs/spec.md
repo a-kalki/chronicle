@@ -120,8 +120,8 @@ chronicle/
   src/cli/         # клиент chronicle + outbox
   contract/        # valibot-схемы v1 и v2: SessionReport, ExtractResult; генерация JSON Schema
   prompts/         # общий промпт выжимки для всех агентов
-  src/adapters/    # адаптеры агентов (claude-code, pi): активность, ходы, пути, выжимка
+  src/adapters/    # адаптеры агентов (claude-code, pi, agy): активность, ходы, пути, выжимка
   src/finish/      # общая часть /finish и replay: состояние сессий, коммиты, сборка отчёта
-  integrations/    # подключение к агентам: хук Claude Code, pi-пакет, скил recall
+  integrations/    # подключение к агентам: хук Claude Code, pi-пакет, скилы agy, скил recall
   docs/            # документация (карта — в AGENTS.md), archive/ — отработанное
 ```

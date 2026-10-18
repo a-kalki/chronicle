@@ -6,17 +6,6 @@
 
 **Закрытие этапа:** итог в 2–3 строки с диапазоном коммитов → `archive/stages.md`; чек-лист отсюда удалить; пометки «v2» и т.п. в живых документах снять — они должны описывать уже сделанное.
 
-## Этап 7. Адаптер agy
-
-Формат логов и CLI проверены вживую: лог в `~/.gemini/antigravity-cli/brain/<id>/.system_generated/logs/transcript.jsonl`, неинтерактивный запуск со схемой — `agy -p --conversation <id> --model gemini-3.8-flash-low --effort low --disable-slash-commands --output-format json --json-schema <schema>` возвращает `structured_output`.
-
-- [ ] Тесты `src/adapters/agy.test.ts` на фрагменте `transcript.jsonl` (активность, ходы с действиями `edit`/`read`/`shell`, cwd) и моке Runner
-- [ ] Реализация `src/adapters/agy.ts` (чтение `transcript.jsonl`, ходы из `USER_EXPLICIT`, пути из `tool_calls`, `extract` через `agy -p`)
-- [ ] Регистрация в `src/adapters/index.ts` (`AGENT_NAMES`, `getAdapter`)
-- [ ] Прогон `bun run check` (типы, линтер, тесты)
-- [ ] Интеграция agy: скил `finish` (`/finish`) и скил `recall` (ссылка на общий recall)
-- [ ] Модель по умолчанию в `~/.config/chronicle/config.json` (`extractModel.agy: "gemini-3.8-flash-low"`)
-- [ ] Проверка на живой сессии и перевод статуса в `docs/agent-contract.md`
 
 ## Потом
 - Пересборка курированной базы по всем кандидатам (при смене правил курирования) — отложено до реальной потребности: сырые кандидаты сохраняются, вопрос переноса статистики пользы решим тогда

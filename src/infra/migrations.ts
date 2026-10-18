@@ -110,4 +110,46 @@ export const MIGRATIONS: string[] = [
   ALTER TABLE knowledge_candidates ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0;
   ALTER TABLE knowledge_candidates ADD COLUMN last_error TEXT;
   `,
+  // Модель работы v2: проект — у хода; у сессии — человек и проект запуска (справочно).
+  // Старые данные не конвертируются: NULL в project_id читается как проект запуска сессии.
+  `
+  CREATE TABLE persons (
+    id TEXT PRIMARY KEY,
+    created_at TEXT NOT NULL
+  );
+
+  CREATE TABLE sessions_v2 (
+    id INTEGER PRIMARY KEY,
+    agent TEXT NOT NULL,
+    agent_session_id TEXT NOT NULL,
+    host TEXT NOT NULL,
+    person TEXT REFERENCES persons(id),
+    launch_project TEXT REFERENCES projects(id), -- NULL — запуск вне git
+    cwd TEXT NOT NULL,
+    UNIQUE (agent, agent_session_id)
+  );
+  INSERT INTO sessions_v2 (id, agent, agent_session_id, host, person, launch_project, cwd)
+    SELECT id, agent, agent_session_id, host, NULL, project_id, cwd FROM sessions;
+  DROP TABLE sessions;
+  ALTER TABLE sessions_v2 RENAME TO sessions;
+
+  ALTER TABLE segments ADD COLUMN superseded INTEGER NOT NULL DEFAULT 0;
+
+  CREATE TABLE turns (
+    segment_id INTEGER NOT NULL REFERENCES segments(id),
+    idx INTEGER NOT NULL,
+    at TEXT NOT NULL,
+    project_id TEXT REFERENCES projects(id),
+    focus TEXT
+  );
+  CREATE INDEX turns_segment ON turns(segment_id);
+
+  ALTER TABLE work_items RENAME TO outcomes;
+  ALTER TABLE outcomes ADD COLUMN project_id TEXT REFERENCES projects(id);
+  ALTER TABLE outcomes ADD COLUMN focus TEXT;
+  ALTER TABLE commits ADD COLUMN project_id TEXT REFERENCES projects(id);
+  ALTER TABLE segment_files ADD COLUMN project_id TEXT REFERENCES projects(id);
+  -- проект кандидата со scope project: NULL — проект запуска сессии
+  ALTER TABLE knowledge_candidates ADD COLUMN project_id TEXT REFERENCES projects(id);
+  `,
 ];

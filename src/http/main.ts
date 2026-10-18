@@ -16,6 +16,12 @@ const log = (message: string) => console.log(`${new Date().toISOString()} ${mess
 
 mkdirSync(dirname(config.dbPath), { recursive: true });
 const store = openStore(config.dbPath);
+// Сессии, принятые до появления людей в модели, принадлежат единственному человеку, если он один
+const persons = [...new Set(config.tokens.map((t) => t.person))];
+if (persons.length === 1 && persons[0]) {
+  const adopted = store.adoptOrphanSessions(persons[0]);
+  if (adopted > 0) log(`сессий без человека отдано ${persons[0]}: ${adopted}`);
+}
 const curator = startCurator({
   store,
   llm: createLlm(config.llm, process.env),

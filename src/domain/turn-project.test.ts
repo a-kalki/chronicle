@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { turnProjects } from './turn-project.ts';
+import { mainProject, turnProjects } from './turn-project.ts';
 
 describe('turnProjects', () => {
   it('побеждает проект с наибольшим суммарным весом действий', () => {
@@ -50,5 +50,15 @@ describe('turnProjects', () => {
       },
     ];
     expect(turnProjects(turns, 'a')).toEqual(['b', 'b']);
+  });
+});
+
+describe('mainProject', () => {
+  it('проект с наибольшим числом ходов; при равенстве и без ходов — проект запуска', () => {
+    expect(mainProject(['a', 'b', 'b'], 'a')).toBe('b');
+    expect(mainProject(['a', 'b'], 'b')).toBe('b');
+    expect(mainProject([], 'a')).toBe('a');
+    expect(mainProject([null, null], null)).toBeNull();
+    expect(mainProject([null, 'c'], null)).toBe('c');
   });
 });

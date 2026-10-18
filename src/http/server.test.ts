@@ -35,7 +35,7 @@ describe('HTTP API /v1', () => {
 
   beforeEach(() => {
     store = openStore(':memory:');
-    handle = createHandler({ store, tokens: [TOKEN] });
+    handle = createHandler({ store, tokens: [{ token: TOKEN, person: 'nur' }] });
   });
 
   it('health доступен без токена', async () => {
@@ -53,6 +53,12 @@ describe('HTTP API /v1', () => {
     const second = await call('/v1/reports', { method: 'POST', body: JSON.stringify(report) });
     expect(second.status).toBe(200);
     expect(((await second.json()) as { duplicate: boolean }).duplicate).toBe(true);
+  });
+
+  it('сессия отчёта получает человека по токену', async () => {
+    const res = await call('/v1/reports', { method: 'POST', body: JSON.stringify(report) });
+    const { segmentId } = (await res.json()) as { segmentId: number };
+    expect(store.getSegment(segmentId)?.person).toBe('nur');
   });
 
   it('POST /v1/reports на нарушение контракта — 422 с описанием', async () => {

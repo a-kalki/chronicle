@@ -1,10 +1,10 @@
 import { Database } from 'bun:sqlite';
-import type { SessionReport } from '../../contract/v1.ts';
 import type {
   CandidateState,
   HistoryItem,
   KnowledgeEntry,
   NewEntry,
+  NewSegment,
   PendingCandidate,
   ProjectRef,
   Store,
@@ -140,41 +140,48 @@ export class SqliteStore implements Store {
     return row?.id ?? null;
   }
 
-  insertSegment(projectId: string, r: SessionReport): number {
-    const s = r.session;
+  insertSegment(g: NewSegment): number {
+    if (g.person) this.db.run('INSERT OR IGNORE INTO persons (id, created_at) VALUES (?, ?)', [g.person, now()]);
     this.db.run(
-      `INSERT INTO sessions (agent, agent_session_id, host, project_id, cwd) VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT (agent, agent_session_id) DO NOTHING`,
-      [s.agent, s.id, s.host, projectId, r.project.path],
+      `INSERT INTO sessions (agent, agent_session_id, host, person, launch_project, cwd) VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT (agent, agent_session_id) DO UPDATE SET person = COALESCE(sessions.person, excluded.person)`,
+      [g.agent, g.agentSessionId, g.host, g.person, g.launchProject, g.cwd],
     );
     const sessionId = this.db
       .query<{ id: number }, [string, string]>('SELECT id FROM sessions WHERE agent = ? AND agent_session_id = ?')
-      .get(s.agent, s.id)?.id;
+      .get(g.agent, g.agentSessionId)?.id;
 
     const segmentId = Number(
       this.db.run(
         `INSERT INTO segments (session_id, seq, started_at, ended_at, activity_source, summary, received_at)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [sessionId ?? null, s.seq, s.startedAt, s.endedAt, r.activity.source, r.work.summary, now()],
+        [sessionId ?? null, g.seq, g.startedAt, g.endedAt, g.activitySource, g.summary, now()],
       ).lastInsertRowid,
     );
 
     const event = this.db.prepare('INSERT INTO activity_events (segment_id, at, actor) VALUES (?, ?, ?)');
-    for (const e of r.activity.events) event.run(segmentId, e.at, e.actor);
-    const item = this.db.prepare('INSERT INTO work_items (segment_id, pos, text) VALUES (?, ?, ?)');
-    for (const [pos, text] of r.work.items.entries()) item.run(segmentId, pos, text);
-    const commit = this.db.prepare('INSERT INTO commits (segment_id, hash, subject, at) VALUES (?, ?, ?, ?)');
-    for (const c of r.work.commits) commit.run(segmentId, c.hash, c.subject, c.at);
-    const file = this.db.prepare('INSERT INTO segment_files (segment_id, path) VALUES (?, ?)');
-    for (const f of r.work.files) file.run(segmentId, f);
+    for (const e of g.events) event.run(segmentId, e.at, e.actor);
+    const turn = this.db.prepare('INSERT INTO turns (segment_id, idx, at, project_id, focus) VALUES (?, ?, ?, ?, ?)');
+    for (const t of g.turns) turn.run(segmentId, t.idx, t.at, t.projectId, t.focus);
+    const outcome = this.db.prepare(
+      'INSERT INTO outcomes (segment_id, pos, project_id, focus, text) VALUES (?, ?, ?, ?, ?)',
+    );
+    for (const [pos, o] of g.outcomes.entries()) outcome.run(segmentId, pos, o.projectId, o.focus, o.text);
+    const commit = this.db.prepare(
+      'INSERT INTO commits (segment_id, project_id, hash, subject, at) VALUES (?, ?, ?, ?, ?)',
+    );
+    for (const c of g.commits) commit.run(segmentId, c.projectId, c.hash, c.subject, c.at);
+    const file = this.db.prepare('INSERT INTO segment_files (segment_id, project_id, path) VALUES (?, ?, ?)');
+    for (const f of g.files) file.run(segmentId, f.projectId, f.path);
 
     const candidate = this.db.prepare(
-      `INSERT INTO knowledge_candidates (segment_id, scope, kind, title, symptoms, cause, fix, tags)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO knowledge_candidates (segment_id, project_id, scope, kind, title, symptoms, cause, fix, tags)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
-    for (const k of r.knowledge) {
+    for (const k of g.knowledge) {
       candidate.run(
         segmentId,
+        k.projectId,
         k.scope,
         k.kind,
         k.title,
@@ -185,6 +192,20 @@ export class SqliteStore implements Store {
       );
     }
     return segmentId;
+  }
+
+  /** Сессии без человека (данные до модели v2) отдаёт человеку; возвращает их число */
+  adoptOrphanSessions(person: string): number {
+    this.db.run('INSERT OR IGNORE INTO persons (id, created_at) VALUES (?, ?)', [person, now()]);
+    return this.db.run('UPDATE sessions SET person = ? WHERE person IS NULL', [person]).changes;
+  }
+
+  supersedeSession(agent: string, agentSessionId: string): void {
+    this.db.run(
+      `UPDATE segments SET superseded = 1
+       WHERE session_id = (SELECT id FROM sessions WHERE agent = ? AND agent_session_id = ?)`,
+      [agent, agentSessionId],
+    );
   }
 
   existingEntryIds(ids: string[]): Set<string> {
@@ -246,53 +267,72 @@ export class SqliteStore implements Store {
       .query<
         {
           id: number;
-          project_id: string;
           agent: string;
           agent_session_id: string;
           host: string;
+          person: string | null;
+          cwd: string;
+          launch_project: string | null;
           seq: number;
           started_at: string;
           ended_at: string;
           activity_source: 'log' | 'coarse';
           summary: string;
+          superseded: number;
         },
         [number]
       >(
-        `SELECT g.id, s.project_id, s.agent, s.agent_session_id, s.host, g.seq, g.started_at, g.ended_at,
-                g.activity_source, g.summary
+        `SELECT g.id, s.agent, s.agent_session_id, s.host, s.person, s.cwd, s.launch_project, g.seq, g.started_at,
+                g.ended_at, g.activity_source, g.summary, g.superseded
          FROM segments g JOIN sessions s ON s.id = g.session_id WHERE g.id = ?`,
       )
       .get(id);
     if (!row) return null;
+    // NULL в project_id — данные v1: проект запуска сессии
+    const project = (p: string | null) => p ?? row.launch_project;
     return {
       id: row.id,
-      projectId: row.project_id,
       agent: row.agent,
       agentSessionId: row.agent_session_id,
       host: row.host,
+      person: row.person,
+      cwd: row.cwd,
+      launchProject: row.launch_project,
       seq: row.seq,
       startedAt: row.started_at,
       endedAt: row.ended_at,
       activitySource: row.activity_source,
       summary: row.summary,
-      items: this.db
-        .query<{ text: string }, [number]>('SELECT text FROM work_items WHERE segment_id = ? ORDER BY pos')
-        .all(id)
-        .map((r) => r.text),
+      superseded: row.superseded === 1,
       events: this.db
         .query<{ at: string; actor: 'user' | 'agent' }, [number]>(
           'SELECT at, actor FROM activity_events WHERE segment_id = ? ORDER BY at',
         )
         .all(id),
-      commits: this.db
-        .query<{ hash: string; subject: string; at: string }, [number]>(
-          'SELECT hash, subject, at FROM commits WHERE segment_id = ? ORDER BY at',
+      turns: this.db
+        .query<{ idx: number; at: string; project_id: string | null; focus: string | null }, [number]>(
+          'SELECT idx, at, project_id, focus FROM turns WHERE segment_id = ? ORDER BY idx',
         )
-        .all(id),
-      files: this.db
-        .query<{ path: string }, [number]>('SELECT path FROM segment_files WHERE segment_id = ?')
         .all(id)
-        .map((r) => r.path),
+        .map((t) => ({ idx: t.idx, at: t.at, projectId: t.project_id, focus: t.focus })),
+      outcomes: this.db
+        .query<{ project_id: string | null; focus: string | null; text: string }, [number]>(
+          'SELECT project_id, focus, text FROM outcomes WHERE segment_id = ? ORDER BY pos',
+        )
+        .all(id)
+        .map((o) => ({ projectId: project(o.project_id), focus: o.focus, text: o.text })),
+      commits: this.db
+        .query<{ project_id: string | null; hash: string; subject: string; at: string }, [number]>(
+          'SELECT project_id, hash, subject, at FROM commits WHERE segment_id = ? ORDER BY at',
+        )
+        .all(id)
+        .map((c) => ({ projectId: project(c.project_id), hash: c.hash, subject: c.subject, at: c.at })),
+      files: this.db
+        .query<{ project_id: string | null; path: string }, [number]>(
+          'SELECT project_id, path FROM segment_files WHERE segment_id = ?',
+        )
+        .all(id)
+        .map((f) => ({ projectId: project(f.project_id), path: f.path })),
     };
   }
 
@@ -302,7 +342,7 @@ export class SqliteStore implements Store {
         {
           id: number;
           segment_id: number;
-          project_id: string;
+          project_id: string | null;
           scope: 'project' | 'global';
           kind: 'trap' | 'fact';
           title: string;
@@ -313,7 +353,7 @@ export class SqliteStore implements Store {
         },
         []
       >(
-        `SELECT c.id, c.segment_id, s.project_id, c.scope, c.kind, c.title, c.symptoms, c.cause, c.fix, c.tags
+        `SELECT c.id, c.segment_id, COALESCE(c.project_id, s.launch_project) AS project_id, c.scope, c.kind, c.title, c.symptoms, c.cause, c.fix, c.tags
          FROM knowledge_candidates c
          JOIN segments g ON g.id = c.segment_id JOIN sessions s ON s.id = g.session_id
          WHERE c.status = 'pending' ORDER BY c.id`,
@@ -413,14 +453,18 @@ export class SqliteStore implements Store {
 export function openStore(path: string): SqliteStore {
   const db = new Database(path, { create: true });
   db.run('PRAGMA journal_mode = WAL');
-  db.run('PRAGMA foreign_keys = ON');
   db.run('CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)');
   const applied = db.query<{ v: number | null }, []>('SELECT MAX(version) AS v FROM schema_migrations').get()?.v ?? 0;
+  // Внешние ключи включаются после миграций: пересборка таблицы (DROP + RENAME) с ними невозможна.
+  // Целостность проверяется в конце каждой миграции.
   MIGRATIONS.slice(applied).forEach((sql, i) => {
     db.transaction(() => {
       db.run(sql);
+      const broken = db.query('PRAGMA foreign_key_check').all();
+      if (broken.length > 0) throw new Error(`миграция ${applied + i + 1}: нарушены внешние ключи`);
       db.run('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)', [applied + i + 1, now()]);
     })();
   });
+  db.run('PRAGMA foreign_keys = ON');
   return new SqliteStore(db);
 }

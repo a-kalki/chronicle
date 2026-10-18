@@ -39,7 +39,7 @@ describe('MCP /mcp', () => {
 
   beforeEach(() => {
     store = openStore(':memory:');
-    handle = createHandler({ store, tokens: [TOKEN] });
+    handle = createHandler({ store, tokens: [{ token: TOKEN, person: 'nur' }] });
     store.createProject({ name: 'u7-school', host: 'laptop', path: '/school', remote: 'github.com/nurgeo/u7-school' });
     store.insertEntry({
       id: 'K-ssh',

@@ -33,3 +33,13 @@ export function turnProjects(
     return prev;
   });
 }
+
+/** Основной проект сегмента (для знаний со scope project): больше всего ходов, при равенстве — запуска */
+export function mainProject(turnProjects: readonly (string | null)[], launch: string | null): string | null {
+  const counts = new Map<string, number>();
+  for (const p of turnProjects) if (p !== null) counts.set(p, (counts.get(p) ?? 0) + 1);
+  const max = Math.max(0, ...counts.values());
+  if (max === 0) return launch;
+  if (launch !== null && counts.get(launch) === max) return launch;
+  return [...counts].find(([, n]) => n === max)?.[0] ?? launch;
+}

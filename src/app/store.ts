@@ -1,5 +1,5 @@
 /** Порт хранилища: то, что нужно use case'ам. Реализация — infra/sqlite-store.ts. */
-import type { KnowledgeCandidate, SessionReport } from '../../contract/v1.ts';
+import type { KnowledgeCandidate } from '../../contract/common.ts';
 
 export interface ProjectRef {
   remote?: string;
@@ -8,27 +8,52 @@ export interface ProjectRef {
   path: string;
 }
 
-export interface StoredSegment {
-  id: number;
-  projectId: string;
+/** Ход: проект — по путям инструментов, фокус — от выжимки */
+export interface StoredTurn {
+  idx: number;
+  at: string;
+  projectId: string | null;
+  focus: string | null;
+}
+
+/** Сегмент в форме, не зависящей от версии контракта */
+export interface NewSegment {
   agent: string;
   agentSessionId: string;
   host: string;
+  /** Человек — по токену, с которым пришёл отчёт */
+  person: string | null;
+  cwd: string;
+  /** Проект каталога запуска; null — запуск вне git */
+  launchProject: string | null;
   seq: number;
   startedAt: string;
   endedAt: string;
   activitySource: 'log' | 'coarse';
   summary: string;
-  items: string[];
   events: { at: string; actor: 'user' | 'agent' }[];
-  commits: { hash: string; subject: string; at: string }[];
-  files: string[];
+  turns: StoredTurn[];
+  outcomes: { projectId: string | null; focus: string | null; text: string }[];
+  commits: { projectId: string | null; hash: string; subject: string; at: string }[];
+  files: { projectId: string | null; path: string }[];
+  /** projectId — проект кандидата со scope project */
+  knowledge: (KnowledgeCandidate & { projectId: string | null })[];
+}
+
+/**
+ * Сохранённый сегмент. projectId результатов, коммитов и файлов старых (v1) сегментов — проект запуска.
+ * superseded — факты работы заменены пересборкой сессии и из проекций исключаются.
+ */
+export interface StoredSegment extends Omit<NewSegment, 'knowledge'> {
+  id: number;
+  superseded: boolean;
 }
 
 export interface PendingCandidate extends KnowledgeCandidate {
   id: number;
   segmentId: number;
-  projectId: string;
+  /** null — у сессии нет проекта: кандидат может попасть только в общий scope */
+  projectId: string | null;
 }
 
 export interface NewEntry {
@@ -80,8 +105,10 @@ export interface Store {
    */
   findProjectByRemote(remote: string): string | null;
   findSegmentId(agent: string, agentSessionId: string, seq: number): number | null;
-  /** Сохраняет сегмент целиком (сессия, активность, результат, кандидаты); возвращает ID сегмента. */
-  insertSegment(projectId: string, report: SessionReport): number;
+  /** Сохраняет сегмент целиком (сессия, активность, ходы, результат, кандидаты); возвращает ID сегмента. */
+  insertSegment(segment: NewSegment): number;
+  /** Помечает все сегменты сессии superseded (перед записью пересобранного) */
+  supersedeSession(agent: string, agentSessionId: string): void;
   existingEntryIds(ids: string[]): Set<string>;
   /** Учёт пользы; обновляет время последнего использования записи. */
   insertUsage(entryId: string, segmentId: number | null, helped: boolean | null, at?: string): void;

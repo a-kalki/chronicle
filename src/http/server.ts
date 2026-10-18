@@ -8,7 +8,8 @@ import { handleMcp } from './mcp.ts';
 
 export interface HandlerDeps {
   store: Store;
-  tokens: string[];
+  /** Токен клиента → человек, чьи отчёты приходят с ним */
+  tokens: { token: string; person: string }[];
   /** Сигнал о новых кандидатах в знания (запуск курирования) */
   onCandidates?: () => void;
 }
@@ -19,9 +20,10 @@ const empty = (status: number) => new Response(null, { status });
 const UsageBody = v.object({ helped: v.nullable(v.boolean()) });
 
 export function createHandler({ store, tokens, onCandidates }: HandlerDeps): (req: Request) => Promise<Response> {
-  const authorized = (req: Request) => {
+  /** Человек по токену запроса; null — токен неверный */
+  const personOf = (req: Request): string | null => {
     const header = req.headers.get('authorization') ?? '';
-    return tokens.some((t) => header === `Bearer ${t}`);
+    return tokens.find((t) => header === `Bearer ${t.token}`)?.person ?? null;
   };
 
   return async (req) => {
@@ -29,14 +31,15 @@ export function createHandler({ store, tokens, onCandidates }: HandlerDeps): (re
     const path = url.pathname;
 
     if (path === '/v1/health') return json({ ok: true });
-    if (!authorized(req)) return json({ error: 'unauthorized' }, 401);
+    const person = personOf(req);
+    if (person === null) return json({ error: 'unauthorized' }, 401);
 
     if (path === '/mcp') return handleMcp(store, req);
 
     if (req.method === 'POST' && path === '/v1/reports') {
       const body = await req.json().catch(() => undefined);
       if (body === undefined) return json({ error: 'невалидный JSON' }, 400);
-      const res = submitReport(store, body);
+      const res = submitReport(store, body, person);
       if (!res.ok) return json({ issues: res.issues }, 422);
       if (res.candidates > 0) onCandidates?.();
       return json(res, res.duplicate ? 200 : 202);

@@ -12,8 +12,8 @@
 
 - [x] Контракт v2: `contract/v2.ts` (`SessionReport`, `ExtractResult` с эпизодами), v1 остаётся; общее — `contract/common.ts`
 - [x] Домен: проект хода по путям с весами и наследованием (поверх `detectProject`); объединение и пересечение интервалов (рядом с `activeMs`)
-- [ ] Миграция SQLite: `persons`, `turns`, `outcomes`, `project_id` у `commits`/`segment_files`, `person`/`launch_project` у `sessions`, `superseded` у `segments`; токены → человек в настройках
-- [ ] `submitReport` v2 и v1 (как сегмент без ходов); `replace` — пометка прежних сегментов сессии `superseded`
+- [x] Миграция SQLite: `persons`, `turns`, `outcomes`, `project_id` у `commits`/`segment_files`, `person`/`launch_project` у `sessions`, `superseded` у `segments`; токены → человек в настройках
+- [x] `submitReport` v2 и v1 (как сегмент без ходов); `replace` — пометка прежних сегментов сессии `superseded`
 - [ ] Адаптер Claude Code: ходы и пути из JSONL (`tool_use`: `file_path`/`path`/`notebook_path`, `cd` в Bash)
 - [ ] Адаптер pi: ходы и пути из JSONL сессии
 - [ ] `collectCommits` по всем затронутым репо; сборка отчёта v2 в `finish`; JSON Schema выжимки — из v2

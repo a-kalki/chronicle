@@ -65,7 +65,7 @@ beforeAll(() => {
   Bun.spawnSync(['mkdir', '-p', repo]);
   git('init', '-q');
   git('remote', 'add', 'origin', 'git@github.com:NurGeo/u7-school.git');
-  server = Bun.serve({ port: 0, fetch: createHandler({ store, tokens: ['secret'] }) });
+  server = Bun.serve({ port: 0, fetch: createHandler({ store, tokens: [{ token: 'secret', person: 'nur' }] }) });
   store.createProject({ name: 'u7-school', host: 'laptop', path: repo, remote: 'github.com/nurgeo/u7-school' });
   store.insertEntry({
     id: 'K-ssh',

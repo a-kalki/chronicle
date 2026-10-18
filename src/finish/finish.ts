@@ -30,7 +30,8 @@ const hhmm = (at: string) =>
   new Date(at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', hour12: false });
 
 interface PromptInput {
-  turns: { idx: number; at: string; text: string }[];
+  /** project — имя проекта хода (по путям инструментов) */
+  turns: { idx: number; at: string; text: string; project: string | null }[];
   /** Недавние фокусы по имени проекта */
   focuses: Record<string, string[]>;
   summaries: string[];
@@ -41,7 +42,7 @@ interface PromptInput {
 /** Промпт выжимки: общий + список ходов, недавние фокусы, продолжение сессии, пересборка */
 function extractPrompt(p: PromptInput): string {
   const parts = [EXTRACT_PROMPT];
-  const turns = p.turns.map((t) => `#${t.idx} ${hhmm(t.at)} «${t.text}»`).join('\n');
+  const turns = p.turns.map((t) => `#${t.idx} ${hhmm(t.at)} [${t.project ?? 'вне проекта'}] «${t.text}»`).join('\n');
   parts.push(`## Ходы этой части сессии\n\n${turns || '(реплик нет)'}`);
   const focuses = Object.entries(p.focuses).filter(([, f]) => f.length > 0);
   if (focuses.length > 0) {
@@ -177,8 +178,9 @@ export async function runFinish(deps: FinishDeps): Promise<FinishResult> {
     const turns = read.turns.map((t, i) => ({ ...t, idx: firstIdx + i, projectKey: projectKeys[i] ?? null }));
     const focusKey = (p: DetectedProject) => p.remote ?? p.path;
     const summaries = replay ? [] : (prev?.summaries ?? []);
+    const names = new Map(projects.map((p) => [p.key, p.name]));
     const prompt = extractPrompt({
-      turns,
+      turns: turns.map((t) => ({ ...t, project: t.projectKey ? (names.get(t.projectKey) ?? null) : null })),
       focuses: Object.fromEntries(projects.map((p) => [p.name, state.recentFocuses(focusKey(p))])),
       summaries,
       startedAt,

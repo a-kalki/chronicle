@@ -122,7 +122,8 @@ const bySession = (us: TurnUnit[]) => {
   return [...map.values()];
 };
 
-export function dayReport(facts: Facts, opts: { day: string; idleGapMinutes?: number }): DayReport {
+/** project — только этот проект: его время, эпизоды и коммиты */
+export function dayReport(facts: Facts, opts: { day: string; idleGapMinutes?: number; project?: string }): DayReport {
   const all = units(facts, (opts.idleGapMinutes ?? facts.settings.idleGapMinutes) * 60_000);
   const eps = episodes(all);
 
@@ -173,6 +174,17 @@ export function dayReport(facts: Facts, opts: { day: string; idleGapMinutes?: nu
     };
   });
 
+  if (opts.project !== undefined) {
+    const own = projects.find((p) => p.id === opts.project);
+    return {
+      day: opts.day,
+      totalMs: own?.ms ?? 0,
+      parallelMs: own?.parallelMs ?? 0,
+      projects: own ? [own] : [],
+      outcomes: own?.episodes.reduce((n, e) => n + e.outcomes.length, 0) ?? 0,
+      commits: own ? own.commits.length + own.episodes.reduce((n, e) => n + e.commits.length, 0) : 0,
+    };
+  }
   return {
     day: opts.day,
     totalMs: unionMs(all.flatMap((u) => u.pieces)),

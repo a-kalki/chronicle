@@ -32,9 +32,12 @@ function originOf(root: string, resolveHost: (host: string) => string): string |
   return [resolveHost(host).toLowerCase(), ...rest].join('/');
 }
 
+/** Имя проекта — по remote (каталог клона может называться иначе: ~ для linux-configs), иначе по каталогу */
 function describeRepo(root: string, resolveHost: (host: string) => string): DetectedProject {
   const remote = originOf(root, resolveHost);
-  return remote ? { name: basename(root), path: root, remote } : { name: basename(root), path: root };
+  return remote
+    ? { name: remote.split('/').pop() || basename(root), path: root, remote }
+    : { name: basename(root), path: root };
 }
 
 /**

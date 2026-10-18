@@ -181,7 +181,8 @@ async function main(argv: string[]) {
     await outbox.flush(send);
     const facts = await api.facts(day, { person: flags.person, project: flags.project });
     const idle = flags.idle ? Number(flags.idle) : undefined;
-    return console.log(formatDayReport(dayReport(facts, { day, idleGapMinutes: idle }), facts.settings.timezone));
+    const report = dayReport(facts, { day, idleGapMinutes: idle, project: flags.project });
+    return console.log(formatDayReport(report, facts.settings.timezone));
   }
 
   // list показывает очередь как есть — для диагностики

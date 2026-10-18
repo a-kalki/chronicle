@@ -271,6 +271,7 @@ describe('runFinish', () => {
     expect(report.work.files).toEqual([{ projectKey: key('chronicle'), path: 'src/a.ts' }]);
     expect(collected.sort()).toEqual(['/chronicle', '/school']);
     expect(calls.prompts[0]).toContain('chronicle: «Учёт»');
+    expect(calls.prompts[0]).toMatch(/#2 \d\d:\d\d \[chronicle\] «/);
     expect(state.recentFocuses('github.com/nurgeo/u7-school')).toEqual(['Школа']);
   });
 

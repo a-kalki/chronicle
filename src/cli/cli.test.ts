@@ -96,6 +96,12 @@ describe('detectProject', () => {
     git('remote', 'set-url', 'origin', 'git@github.com:NurGeo/u7-school.git');
   });
 
+  it('имя проекта — по remote, а не по каталогу клона', () => {
+    git('remote', 'set-url', 'origin', 'git@github.com:a-kalki/linux-configs.git');
+    expect(detectProject(repo).name).toBe('linux-configs');
+    git('remote', 'set-url', 'origin', 'git@github.com:NurGeo/u7-school.git');
+  });
+
   it('вне git — текущий каталог без remote', () => {
     expect(detectProject(root)).toEqual({ name: root.split('/').pop() as string, path: root });
   });

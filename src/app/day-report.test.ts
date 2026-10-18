@@ -121,6 +121,12 @@ describe('dayReport', () => {
     expect(r.projects[0]?.episodes[0]).toMatchObject({ focus: null, outcomes: ['Сделано'] });
   });
 
+  it('отчёт по одному проекту — только его время, эпизоды и коммиты', () => {
+    const r = dayReport(facts([main]), { day: '2026-10-17', project: 'chronicle' });
+    expect(r.projects.map((p) => p.name)).toEqual(['chronicle']);
+    expect([r.totalMs, r.outcomes, r.commits]).toEqual([2 * HOUR, 1, 2]);
+  });
+
   it('активность вне дня обрезается', () => {
     const late = segment({ startedAt: at(18), endedAt: at(26), events: events(at(18), at(26)), turns: [] });
     expect(dayReport(facts([late]), { day: '2026-10-17' }).totalMs).toBe(6 * HOUR);

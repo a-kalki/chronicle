@@ -1,6 +1,6 @@
 /**
  * MCP (Streamable HTTP, POST /mcp): только чтение базы знаний и учёт пользы.
- * Отчёты сессий через MCP не принимаются — только через CLI с outbox (docs/spec.md, раздел 5).
+ * Отчёты сессий через MCP не принимаются — только через CLI с outbox (docs/data-and-api.md, раздел 6).
  * Ответ — обычный JSON (потоки не нужны): initialize, ping, tools/list, tools/call.
  */
 import { toJsonSchema } from '@valibot/to-json-schema';

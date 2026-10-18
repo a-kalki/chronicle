@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import * as v from 'valibot';
+import { extractResultJsonSchema } from './json-schema.ts';
 import { ExtractResult, SessionReport } from './v2.ts';
 
 const report = {
@@ -107,5 +108,19 @@ describe('ExtractResult v2', () => {
     expect(v.safeParse(ExtractResult, { ...extract, work: { ...extract.work, episodes: [long] } }).success).toBe(false);
     const zero = { ...extract.work.episodes[0], from: 0 };
     expect(v.safeParse(ExtractResult, { ...extract, work: { ...extract.work, episodes: [zero] } }).success).toBe(false);
+  });
+});
+
+describe('JSON Schema выжимки', () => {
+  it('генерируется из valibot-схемы v2 и описывает эпизоды', () => {
+    const schema = extractResultJsonSchema() as {
+      type: string;
+      required: string[];
+      properties: Record<string, unknown>;
+    };
+    expect(schema.type).toBe('object');
+    expect(schema.required.sort()).toEqual(['knowledge', 'usage', 'work']);
+    expect(JSON.stringify(schema.properties.work)).toContain('"episodes"');
+    expect(JSON.stringify(schema.properties.knowledge)).toContain('"trap"');
   });
 });

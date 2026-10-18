@@ -1,6 +1,6 @@
-import * as v from 'valibot';
-import * as V1 from '../../contract/v1.ts';
-import * as V2 from '../../contract/v2.ts';
+import { parseSessionReport } from '../../contract/report.ts';
+import type * as V1 from '../../contract/v1.ts';
+import type * as V2 from '../../contract/v2.ts';
 import { mainProject } from '../domain/turn-project.ts';
 import type { NewSegment, Store } from './store.ts';
 
@@ -73,15 +73,9 @@ function segmentBase(r: V1.SessionReport | V2.SessionReport, person: string | nu
  * person — человек, которому сопоставлен токен отчёта.
  */
 export function submitReport(store: Store, input: unknown, person: string | null = null): SubmitReportResult {
-  const isV2 = (input as { version?: unknown } | null)?.version === 2;
-  const parsed = isV2 ? v.safeParse(V2.SessionReport, input) : v.safeParse(V1.SessionReport, input);
-  if (!parsed.success) {
-    return {
-      ok: false,
-      issues: parsed.issues.map((i) => `${v.getDotPath(i) ?? '(корень)'}: ${i.message}`),
-    };
-  }
-  const report = parsed.output;
+  const parsed = parseSessionReport(input);
+  if (!parsed.ok) return parsed;
+  const { report } = parsed;
   const { session } = report;
 
   return store.transaction(() => {

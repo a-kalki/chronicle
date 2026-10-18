@@ -3,9 +3,8 @@
 import { spawn } from 'node:child_process';
 import { mkdirSync, openSync } from 'node:fs';
 import { join } from 'node:path';
-import * as v from 'valibot';
 import { extractResultJsonSchema } from '../../contract/json-schema.ts';
-import { SessionReport } from '../../contract/v1.ts';
+import { parseSessionReport } from '../../contract/report.ts';
 import { AGENT_NAMES, getAdapter } from '../adapters/index.ts';
 import { formatEntry } from '../app/format.ts';
 import { runFinish } from '../finish/finish.ts';
@@ -26,6 +25,8 @@ const USAGE = `Использование:
                                  итог сессии: выжимка агентом → отчёт сегмента
                                  --hook — ID сессии из JSON на stdin (session_id)
                                  --detach — в фоне, лог: <stateDir>/finish.log
+  chronicle replay --agent <имя> --session <id>
+                                 пересборка сессии целиком: разметка ходов заново, без знаний (replace)
   chronicle schema               JSON Schema выжимки (для --json-schema агентов)
   chronicle last --agent <имя>    последний итог finish агента (JSON, без сети) — для уведомлений
   chronicle statusline [--agent <имя>]
@@ -76,17 +77,23 @@ async function statusline(flags: Record<string, string>) {
 
 const stamp = (message: string) => console.log(`${new Date().toISOString()} ${message}`);
 
-async function finish(config: ClientConfig, flags: Record<string, string>, send: (r: unknown) => Promise<SendResult>) {
+async function finish(
+  config: ClientConfig,
+  flags: Record<string, string>,
+  send: (r: unknown) => Promise<SendResult>,
+  replay = false,
+) {
   const agent = flags.agent ?? fail(`--agent: ${AGENT_NAMES.join(' | ')}`);
   const adapter = getAdapter(agent) ?? fail(`неизвестный агент «${agent}»; доступны: ${AGENT_NAMES.join(', ')}`);
-  const sessionId = flags.hook
-    ? ((JSON.parse(await Bun.stdin.text()) as { session_id?: string }).session_id ?? fail('hook: нет session_id'))
-    : (flags.session ?? fail('--session <id> или --hook'));
+  const sessionId =
+    flags.hook && !replay
+      ? ((JSON.parse(await Bun.stdin.text()) as { session_id?: string }).session_id ?? fail('hook: нет session_id'))
+      : (flags.session ?? fail('--session <id> или --hook'));
 
-  // Статус виден сразу: строка статуса Claude Code, уведомление pi
-  writeLastFinish(config.stateDir, { agent, sessionId, status: 'running', at: new Date().toISOString() });
+  // Статус виден сразу: строка статуса Claude Code, уведомление pi (replay — ручная команда, статус не нужен)
+  if (!replay) writeLastFinish(config.stateDir, { agent, sessionId, status: 'running', at: new Date().toISOString() });
 
-  if (flags.detach) {
+  if (flags.detach && !replay) {
     mkdirSync(config.stateDir, { recursive: true });
     const logFd = openSync(join(config.stateDir, 'finish.log'), 'a');
     const child = spawn(process.execPath, [import.meta.path, 'finish', '--agent', agent, '--session', sessionId], {
@@ -97,8 +104,10 @@ async function finish(config: ClientConfig, flags: Record<string, string>, send:
     return console.log(`finish ${agent}/${sessionId} запущен в фоне`);
   }
 
-  stamp(`finish ${agent}/${sessionId}`);
+  const what = replay ? 'replay' : 'finish';
+  stamp(`${what} ${agent}/${sessionId}`);
   const res = await runFinish({
+    replay,
     adapter,
     sessionId,
     host: config.host,
@@ -108,14 +117,16 @@ async function finish(config: ClientConfig, flags: Record<string, string>, send:
     extractModel: config.extractModel[agent],
     log: stamp,
   });
-  stamp(`finish ${agent}/${sessionId}: ${JSON.stringify(res)}`);
-  writeLastFinish(config.stateDir, {
-    agent,
-    sessionId,
-    status: res.status,
-    at: new Date().toISOString(),
-    ...(res.status === 'reported' ? { summary: res.summary, knowledge: res.knowledge } : { reason: res.reason }),
-  });
+  stamp(`${what} ${agent}/${sessionId}: ${JSON.stringify(res)}`);
+  if (!replay) {
+    writeLastFinish(config.stateDir, {
+      agent,
+      sessionId,
+      status: res.status,
+      at: new Date().toISOString(),
+      ...(res.status === 'reported' ? { summary: res.summary, knowledge: res.knowledge } : { reason: res.reason }),
+    });
+  }
   if (res.status === 'failed') process.exit(1);
 }
 
@@ -141,6 +152,7 @@ async function main(argv: string[]) {
   const { flags, positional } = splitFlags(rest);
 
   if (cmd === 'finish') return finish(config, flags, send);
+  if (cmd === 'replay') return finish(config, flags, send, true);
 
   if (cmd === 'report' && positional[0] === 'submit') {
     const source = positional[1] ?? fail(USAGE);
@@ -151,13 +163,9 @@ async function main(argv: string[]) {
     } catch {
       fail('отчёт: невалидный JSON');
     }
-    const parsed = v.safeParse(SessionReport, input);
-    if (!parsed.success) {
-      fail(
-        `отчёт не соответствует контракту:\n${parsed.issues.map((i) => `  ${v.getDotPath(i)}: ${i.message}`).join('\n')}`,
-      );
-    }
-    outbox.enqueue(parsed.output);
+    const parsed = parseSessionReport(input);
+    if (!parsed.ok) fail(`отчёт не соответствует контракту:\n${parsed.issues.map((i) => `  ${i}`).join('\n')}`);
+    outbox.enqueue(parsed.report);
     const res = await outbox.flush(send);
     console.log(formatFlush(res));
     if (res.rejected > 0) process.exit(1);

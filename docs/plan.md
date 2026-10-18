@@ -16,9 +16,9 @@
 - [x] `submitReport` v2 и v1 (как сегмент без ходов); `replace` — пометка прежних сегментов сессии `superseded`
 - [x] Адаптер Claude Code: ходы и пути из JSONL (`tool_use`: `file_path`/`path`/`notebook_path`, `cd` в Bash)
 - [x] Адаптер pi: ходы и пути из JSONL сессии
-- [ ] `collectCommits` по всем затронутым репо; сборка отчёта v2 в `finish`; JSON Schema выжимки — из v2
-- [ ] Промпт `prompts/extract.md`: эпизоды по номерам ходов, переиспользование недавних фокусов
-- [ ] `chronicle replay` (выжимка без знаний, `replace`)
+- [x] `collectCommits` по всем затронутым репо; сборка отчёта v2 в `finish`; JSON Schema выжимки — из v2
+- [x] Промпт `prompts/extract.md`: эпизоды по номерам ходов, переиспользование недавних фокусов
+- [x] `chronicle replay` (выжимка без знаний, `replace`)
 - [ ] `GET /v1/facts` и `chronicle report day` (время `X ч (паралл. Y ч)`, эпизоды, результаты, коммиты)
 - [ ] Выкатка: копия БД на сервере → деплой → обновление клиентов (ноутбук, сервер) → `replay` живых сессий
 - [ ] Проверка e2e: `chronicle report day 2026-10-17` — chronicle и u7-school раздельно, 27 + 3 коммита, пересечение с pi-сессией в параллельном времени

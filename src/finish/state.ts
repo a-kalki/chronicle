@@ -17,7 +17,12 @@ export interface SessionState {
   watermark: unknown;
   /** Итоги уже отправленных сегментов — чтобы выжимка продолжения не повторяла их */
   summaries?: string[];
+  /** Номер последнего отправленного хода: нумерация ходов сквозная по сегментам */
+  turns?: number;
 }
+
+/** Сколько недавних фокусов помнить на проект */
+const FOCUSES_KEPT = 10;
 
 /** Дольше этого finish не идёт: выжимка ограничена таймаутом */
 const STALE_LOCK_MS = 30 * 60_000;
@@ -42,6 +47,27 @@ export class FinishState {
     const path = this.path(agent, sessionId, 'json');
     writeFileSync(`${path}.tmp`, JSON.stringify(state));
     renameSync(`${path}.tmp`, path);
+  }
+
+  /** Недавние фокусы проекта (по всем сессиям на машине) — выжимка переиспользует подходящие */
+  recentFocuses(project: string): string[] {
+    return this.focuses()[project] ?? [];
+  }
+
+  rememberFocuses(byProject: Record<string, string[]>): void {
+    const all = this.focuses();
+    for (const [project, focuses] of Object.entries(byProject)) {
+      const merged = [...focuses.toReversed(), ...(all[project] ?? [])];
+      all[project] = [...new Set(merged)].slice(0, FOCUSES_KEPT);
+    }
+    const path = join(this.dir, '_focuses.json');
+    writeFileSync(`${path}.tmp`, JSON.stringify(all));
+    renameSync(`${path}.tmp`, path);
+  }
+
+  private focuses(): Record<string, string[]> {
+    const path = join(this.dir, '_focuses.json');
+    return existsSync(path) ? (JSON.parse(readFileSync(path, 'utf8')) as Record<string, string[]>) : {};
   }
 
   /**

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'bun:test';
 import * as v from 'valibot';
-import { extractResultJsonSchema } from './json-schema.ts';
 import { ExtractResult, SessionReport } from './v1.ts';
 
 const candidate = {
@@ -102,18 +101,5 @@ describe('ExtractResult v1', () => {
 
   it('отклоняет пустой итог', () => {
     expect(v.safeParse(ExtractResult, { ...extract, work: { summary: '', items: [] } }).success).toBe(false);
-  });
-});
-
-describe('JSON Schema выжимки', () => {
-  it('генерируется из valibot-схемы и описывает обязательные поля', () => {
-    const schema = extractResultJsonSchema() as {
-      type: string;
-      required: string[];
-      properties: Record<string, unknown>;
-    };
-    expect(schema.type).toBe('object');
-    expect(schema.required.sort()).toEqual(['knowledge', 'usage', 'work']);
-    expect(JSON.stringify(schema.properties.knowledge)).toContain('"trap"');
   });
 });

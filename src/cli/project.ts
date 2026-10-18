@@ -53,18 +53,23 @@ function existingDir(path: string): string {
   return existsSync(dir) && !statSync(dir).isDirectory() ? dirname(dir) : dir;
 }
 
-/** Git-репозиторий, которому принадлежит путь; null — путь вне git (проекта не образует) */
+/**
+ * Git-репозиторий, которому принадлежит путь; null — путь вне git или игнорируется своим репо
+ * (~/.pi, ~/.claude в репо настроек домашнего каталога) — такой путь проекта не образует.
+ */
 export function findRepo(path: string, resolveHost: (host: string) => string = sshHostname): DetectedProject | null {
   const root = git(existingDir(path), 'rev-parse', '--show-toplevel');
-  return root ? describeRepo(root, resolveHost) : null;
+  if (!root) return null;
+  // отслеживаемые файлы check-ignore не считает игнорируемыми, даже если они подходят под шаблон
+  if (path !== root && git(root, 'check-ignore', '-q', path) !== null) return null;
+  return describeRepo(root, resolveHost);
 }
 
-/** findRepo с запоминанием по каталогу: у сессии сотни путей в нескольких репо */
+/** findRepo с запоминанием: у сессии сотни вызовов инструментов по одним и тем же путям */
 export function repoResolver(find: (path: string) => DetectedProject | null = findRepo) {
-  const byDir = new Map<string, DetectedProject | null>();
+  const cache = new Map<string, DetectedProject | null>();
   return (path: string): DetectedProject | null => {
-    const dir = existingDir(path);
-    if (!byDir.has(dir)) byDir.set(dir, find(dir));
-    return byDir.get(dir) ?? null;
+    if (!cache.has(path)) cache.set(path, find(path));
+    return cache.get(path) ?? null;
   };
 }

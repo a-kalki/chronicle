@@ -112,15 +112,22 @@ describe('findRepo', () => {
     expect(findRepo(join(root, 'notes.md'))).toBeNull();
   });
 
-  it('repoResolver запоминает ответ по каталогу', () => {
+  it('путь, игнорируемый своим репо (как ~/.pi в репо домашнего каталога), проекта не даёт', () => {
+    writeFileSync(join(repo, '.gitignore'), '.*\n!.gitignore\n');
+    expect(findRepo(join(repo, '.pi/agent/AGENTS.md'))).toBeNull();
+    expect(findRepo(join(repo, 'src/a.ts'))?.path).toBe(repo);
+    rmSync(join(repo, '.gitignore'));
+  });
+
+  it('repoResolver запоминает ответ по пути', () => {
     let calls = 0;
     const resolve = repoResolver((p) => {
       calls++;
       return findRepo(p);
     });
     resolve(join(repo, 'a.ts'));
-    resolve(join(repo, 'b.ts'));
-    expect(resolve(join(repo, 'c.ts'))?.path).toBe(repo);
+    resolve(join(repo, 'a.ts'));
+    expect(resolve(join(repo, 'a.ts'))?.path).toBe(repo);
     expect(calls).toBe(1);
   });
 });

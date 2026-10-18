@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHandler } from '../http/server.ts';
@@ -225,6 +225,13 @@ describe('CLI chronicle', () => {
     expect(line.out).toContain('Opus 5.5 · chronicle · ');
     expect(line.out).toContain('пропуск: лог сессии не найден');
 
+    // agy рисует свою строку с моделью, наша — под ней (stack_with_default)
+    const bare = await cli(['statusline', '--agent', 'claude-code', '--no-model'], {
+      stdin: JSON.stringify({ model: { display_name: 'Opus 5.5' } }),
+    });
+    expect(bare.out).toStartWith('chronicle · ');
+    expect(bare.out).not.toContain('Opus');
+
     const lastRes = await cli(['last', '--agent', 'claude-code']);
     expect(JSON.parse(lastRes.out)).toMatchObject({ sessionId: 'no-such-session', status: 'skipped' });
     expect(JSON.parse((await cli(['last', '--agent', 'pi'])).out)).toBeNull();
@@ -236,5 +243,18 @@ describe('CLI chronicle', () => {
       env: { CHRONICLE_URL: '', CHRONICLE_TOKEN: '' },
     });
     expect(res).toMatchObject({ code: 0, out: 'Opus 5.5\n' });
+  });
+
+  it('agy-hook всегда отвечает {} и вне процесса agy ничего не делает', async () => {
+    const stdin = JSON.stringify({ conversationId: 'c-1' });
+    const outside = await cli(['agy-hook'], { stdin });
+    expect(outside).toMatchObject({ code: 0, out: '{}\n' });
+    expect(existsSync(join(root, 'state', 'agy'))).toBe(false);
+
+    const extract = await cli(['agy-hook'], { stdin, env: { CHRONICLE_EXTRACT: '1' } });
+    expect(extract).toMatchObject({ code: 0, out: '{}\n' });
+
+    const garbage = await cli(['agy-hook'], { stdin: 'not json' });
+    expect(garbage).toMatchObject({ code: 0, out: '{}\n' });
   });
 });

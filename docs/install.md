@@ -49,10 +49,15 @@ agy: `agy mcp add …` с теми же адресом и заголовком.
 
 ## 4. agy
 
-- Скил finish: `ln -s ~/dev/tools/chronicle/integrations/agy/skills/finish ~/.gemini/config/skills/finish`
+Итог — сам, как в Claude Code: при `/clear`, `/resume` на другой диалог и выходе из agy. Только Linux (pid agy ищется через `/proc`, выход ловит `tail --pid`).
+
+- Хуки `SessionStart` и `Stop` → `chronicle agy-hook`: `ln -s ~/dev/tools/chronicle/integrations/agy/hooks.json ~/.gemini/config/hooks.json`
+- Строка статуса — в `~/.gemini/antigravity-cli/settings.json` (под стандартной строкой agy):
+  ```json
+  "statusLine": { "type": "command", "command": "chronicle statusline --agent agy --no-model", "stack_with_default": true }
+  ```
 - Скил recall: `ln -s ~/dev/tools/chronicle/integrations/skills/recall ~/.gemini/config/skills/recall`
-- Уведомление в новой сессии (хук `SessionStart`): `ln -s ~/dev/tools/chronicle/integrations/agy/hooks.json ~/.gemini/config/hooks.json`
-- Модель выжимки в `~/.config/chronicle/config.json`: `extractModel.agy: "gemini-3.8-flash-low"`. Выжимка выполняется неинтерактивно с вызовом `agy -p`.
+- Модель выжимки — `extractModel.agy` в `~/.config/chronicle/config.json` (по умолчанию `gemini-3.8-flash-low`).
 
 ## Диагностика
 

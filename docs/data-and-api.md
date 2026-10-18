@@ -231,6 +231,7 @@ JSON. Все пути, кроме `/v1/health`, требуют `Authorization: B
 |---|---|
 | `chronicle schema` | JSON Schema выжимки — для `--json-schema` агентов |
 | `chronicle last --agent <имя>` | последний итог `finish` агента (JSON) — для уведомлений |
-| `chronicle statusline [--agent <имя>]` | строка статуса: последний итог и очередь |
+| `chronicle statusline [--agent <имя>] [--no-model]` | строка статуса: последний итог и очередь; модель — из JSON агента на stdin (`--no-model` — без неё, когда агент рисует свою строку) |
+| `chronicle agy-hook` | хук agy (`SessionStart`, `Stop`): текущий диалог процесса agy в `agy/<pid>.json`; смена диалога — finish прошлого в фоне; сторож (`tail --pid`) — finish последнего при выходе (`chronicle agy-exit --pid`). Отвечает `{}` |
 
-Локальное состояние клиента — `~/.local/state/chronicle/`: `outbox/` (и `outbox/rejected/` с причинами отказа), `sessions/` (watermark, номер сегмента и последнего хода по сессиям; `_focuses.json` — недавние фокусы проектов для выжимки), `finish.log`.
+Локальное состояние клиента — `~/.local/state/chronicle/`: `outbox/` (и `outbox/rejected/` с причинами отказа), `sessions/` (watermark, номер сегмента и последнего хода по сессиям; `_focuses.json` — недавние фокусы проектов для выжимки), `finish.log`, `agy/` (текущий диалог и pid сторожа по процессам agy).

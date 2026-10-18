@@ -1,10 +1,12 @@
 #!/usr/bin/env bun
 /** CLI chronicle — единственный путь доставки отчётов агентами (через outbox). */
 import { spawn } from 'node:child_process';
-import { mkdirSync, openSync } from 'node:fs';
+import { mkdirSync, openSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { extractResultJsonSchema } from '../../contract/json-schema.ts';
 import { parseSessionReport } from '../../contract/report.ts';
+import { isAgyUserConversation } from '../adapters/agy.ts';
+import { type AgyHookDeps, onAgyExit, onAgyHook } from '../adapters/agy-hook.ts';
 import { AGENT_NAMES, getAdapter } from '../adapters/index.ts';
 import { dayReport, formatDayReport } from '../app/day-report.ts';
 import { formatEntry } from '../app/format.ts';
@@ -33,9 +35,10 @@ const USAGE = `Использование:
                                  пересборка сессии целиком: разметка ходов заново, без знаний (replace)
   chronicle schema               JSON Schema выжимки (для --json-schema агентов)
   chronicle last --agent <имя>    последний итог finish агента (JSON, без сети) — для уведомлений
-  chronicle statusline [--agent <имя>]
+  chronicle statusline [--agent <имя>] [--no-model]
                                  строка статуса: последний итог сессии и очередь (без сети);
-                                 читает JSON Claude Code со stdin (модель)`;
+                                 модель — из JSON агента на stdin (--no-model — без неё)
+  chronicle agy-hook             хук agy (SessionStart, Stop): смена диалога и выход agy → finish в фоне`;
 
 function fail(message: string): never {
   console.error(message);
@@ -43,7 +46,7 @@ function fail(message: string): never {
 }
 
 /** Флаги без значения */
-const SWITCHES = new Set(['hook', 'detach']);
+const SWITCHES = new Set(['hook', 'detach', 'no-model']);
 
 function splitFlags(args: string[]): { flags: Record<string, string>; positional: string[] } {
   const flags: Record<string, string> = {};
@@ -60,7 +63,7 @@ function splitFlags(args: string[]): { flags: Record<string, string>; positional
 /** Строка статуса: ничего не отправляет и не падает — Claude Code вызывает её часто */
 async function statusline(flags: Record<string, string>) {
   let model: string | undefined;
-  if (!process.stdin.isTTY) {
+  if (!process.stdin.isTTY && !flags['no-model']) {
     try {
       model = (JSON.parse(await Bun.stdin.text()) as { model?: { display_name?: string } }).model?.display_name;
     } catch {
@@ -77,6 +80,76 @@ async function statusline(flags: Record<string, string>) {
   } catch {
     console.log(model ?? '');
   }
+}
+
+/** Фоновый процесс с выводом в finish.log; возвращает pid */
+function background(stateDir: string, cmd: string[]): number {
+  mkdirSync(stateDir, { recursive: true });
+  const logFd = openSync(join(stateDir, 'finish.log'), 'a');
+  const child = spawn(cmd[0] as string, cmd.slice(1), { detached: true, stdio: ['ignore', logFd, logFd] });
+  child.unref();
+  return child.pid ?? 0;
+}
+
+/** Команда этого же CLI */
+const self = (...args: string[]) => [process.execPath, import.meta.path, ...args];
+
+function isAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return (e as { code?: string }).code === 'EPERM';
+  }
+}
+
+/** Ближайший предок — процесс agy (хук запускается как agy → sh → chronicle); только Linux */
+function agyAncestor(): number | null {
+  let pid = process.ppid;
+  for (let depth = 0; depth < 8 && pid > 1; depth++) {
+    let stat: string;
+    try {
+      stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+    } catch {
+      return null;
+    }
+    // pid (comm) state ppid …; comm может содержать пробелы и скобки
+    const end = stat.lastIndexOf(')');
+    if (stat.slice(stat.indexOf('(') + 1, end) === 'agy') return pid;
+    pid = Number(stat.slice(end + 2).split(' ')[1]);
+  }
+  return null;
+}
+
+const agyDeps = (stateDir: string): AgyHookDeps => ({
+  dir: join(stateDir, 'agy'),
+  isAlive,
+  isUserConversation: (id) => isAgyUserConversation(id),
+  finish: (id) => background(stateDir, self('finish', '--agent', 'agy', '--session', id)),
+  // Ждёт выхода agy без опроса из bun: tail --pid (coreutils)
+  watch: (pid) =>
+    background(stateDir, [
+      'sh',
+      '-c',
+      'tail --pid="$1" -f /dev/null; exec "$2" "$3" agy-exit --pid "$1"',
+      'sh',
+      String(pid),
+      ...self(),
+    ]),
+});
+
+/** Хук agy: не должен ни падать, ни задерживать agy — ответ всегда `{}` */
+async function agyHook() {
+  try {
+    const { conversationId } = JSON.parse(await Bun.stdin.text()) as { conversationId?: string };
+    const agyPid = agyAncestor();
+    if (conversationId && agyPid) {
+      onAgyHook({ conversationId, agyPid }, agyDeps(loadClientConfig(process.env).stateDir));
+    }
+  } catch (e) {
+    console.error(`chronicle agy-hook: ${(e as Error).message}`);
+  }
+  console.log('{}');
 }
 
 const stamp = (message: string) => console.log(`${new Date().toISOString()} ${message}`);
@@ -98,13 +171,7 @@ async function finish(
   if (!replay) writeLastFinish(config.stateDir, { agent, sessionId, status: 'running', at: new Date().toISOString() });
 
   if (flags.detach && !replay) {
-    mkdirSync(config.stateDir, { recursive: true });
-    const logFd = openSync(join(config.stateDir, 'finish.log'), 'a');
-    const child = spawn(process.execPath, [import.meta.path, 'finish', '--agent', agent, '--session', sessionId], {
-      detached: true,
-      stdio: ['ignore', logFd, logFd],
-    });
-    child.unref();
+    background(config.stateDir, self('finish', '--agent', agent, '--session', sessionId));
     return console.log(`finish ${agent}/${sessionId} запущен в фоне`);
   }
 
@@ -142,6 +209,11 @@ async function main(argv: string[]) {
   if (cmd === 'schema') return console.log(JSON.stringify(extractResultJsonSchema(), null, 2));
   // Неинтерактивный запуск агента для выжимки: его хуки завершения не должны снова запускать finish
   if (cmd === 'finish' && process.env.CHRONICLE_EXTRACT) return;
+  if (cmd === 'agy-hook') return process.env.CHRONICLE_EXTRACT ? console.log('{}') : agyHook();
+  if (cmd === 'agy-exit') {
+    const pid = Number(splitFlags(rest).flags.pid);
+    return onAgyExit(pid, agyDeps(loadClientConfig(process.env).stateDir));
+  }
 
   if (cmd === 'statusline') return statusline(splitFlags(rest).flags);
   if (cmd === 'last') {

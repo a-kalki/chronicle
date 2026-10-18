@@ -102,11 +102,12 @@ v1 сервис принимает и дальше (outbox старых клие
 | Агент | Выжимка (A3) | Активность (A4) | `/finish` |
 |---|---|---|---|
 | Claude Code ✅ | `claude -p --model haiku --resume <id> --fork-session --no-session-persistence --tools "" --output-format json --json-schema <schema>`, ответ в `structured_output` | JSONL `~/.claude/projects/<проект>/<id>.jsonl` | хук `SessionEnd` (`/clear`, выход) |
-| agy ✅ | `agy -p --conversation <id> --model gemini-3.8-flash-low --effort low --disable-slash-commands --output-format json --json-schema <schema>`, ответ в `structured_output` (форка нет — ход дописывается в диалог) | JSONL `~/.gemini/antigravity-cli/brain/<id>/.system_generated/logs/transcript.jsonl` (ходы из `USER_EXPLICIT`, пути из `tool_calls`) | скил `/finish` (`chronicle finish --agent agy --session <id> --detach`) |
+| pi ✅ | `pi -p --fork <файл> --session-dir <временный> --no-tools --model <m>`, схема в промпте (`--fork` несовместим с `--no-session`) | JSONL `~/.pi/agent/sessions/` | расширение `integrations/pi` (`/finish`) |
+| agy ✅ | копия диалога `conversations/<id>.db` под новым id (снимок `VACUUM INTO`, замена `cascade_id`) → `agy --conversation <копия> --model gemini-3.8-flash-low --effort low --disable-slash-commands --output-format json --json-schema <schema> -p <промпт>` (`-p` — последним), ответ в `structured_output`; следы копии убираются, `cache/last_conversations.json` восстанавливается | JSONL `~/.gemini/antigravity-cli/brain/<id>/.system_generated/logs/transcript.jsonl` (ходы из `USER_EXPLICIT`, пути из `tool_calls`; промпты выжимки старого способа отсеиваются) | `SessionEnd` нет: хуки `SessionStart`/`Stop` → `chronicle agy-hook` (смена диалога: `/clear`, `/resume`), сторож процесса agy — выход; субагенты (нет реплик `USER_EXPLICIT`) не учитываются |
 
 ## Защита от рекурсии
 
-Неинтерактивный запуск агента для выжимки сам завершается как сессия — и его хук завершения снова вызвал бы `chronicle finish`. Адаптер ставит дочернему процессу `CHRONICLE_EXTRACT=1`; при этой переменной `chronicle finish` ничего не делает.
+Неинтерактивный запуск агента для выжимки сам завершается как сессия — и его хук завершения снова вызвал бы `chronicle finish`. Адаптер ставит дочернему процессу `CHRONICLE_EXTRACT=1`; при этой переменной `chronicle finish` ничего не делает, а `chronicle agy-hook` отвечает `{}`, не трогая состояние.
 
 ## Ветвление сессий
 

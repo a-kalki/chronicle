@@ -1,11 +1,6 @@
 {
   "chronicle": {
-    "SessionStart": [
-      {
-        "type": "command",
-        "command": "bun run /home/nur/dev/tools/chronicle/integrations/agy/session-start.ts",
-        "timeout": 15
-      }
-    ]
+    "SessionStart": [{ "type": "command", "command": "chronicle agy-hook", "timeout": 10 }],
+    "Stop": [{ "type": "command", "command": "chronicle agy-hook", "timeout": 10 }]
   }
 }

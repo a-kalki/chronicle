@@ -120,6 +120,9 @@ export interface Store {
   markFound(ids: string[]): void;
   markOpened(id: string): void;
   getSegment(id: number): StoredSegment | null;
+  /** Действующие (не superseded) сегменты, пересекающие [from, to); person = null — все люди */
+  segmentsBetween(from: string, to: string, person: string | null): StoredSegment[];
+  projects(): { id: string; name: string }[];
   pendingCandidates(): PendingCandidate[];
   candidate(id: number): CandidateState | null;
   /** Решение курирования по кандидату */

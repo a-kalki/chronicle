@@ -336,6 +336,21 @@ export class SqliteStore implements Store {
     };
   }
 
+  segmentsBetween(from: string, to: string, person: string | null): StoredSegment[] {
+    return this.db
+      .query<{ id: number }, [string, string, string | null, string | null]>(
+        `SELECT g.id FROM segments g JOIN sessions s ON s.id = g.session_id
+         WHERE g.superseded = 0 AND g.started_at < ? AND g.ended_at >= ? AND (? IS NULL OR s.person = ?)
+         ORDER BY g.started_at`,
+      )
+      .all(to, from, person, person)
+      .flatMap((r) => this.getSegment(r.id) ?? []);
+  }
+
+  projects(): { id: string; name: string }[] {
+    return this.db.query<{ id: string; name: string }, []>('SELECT id, name FROM projects ORDER BY id').all();
+  }
+
   pendingCandidates(): PendingCandidate[] {
     return this.db
       .query<

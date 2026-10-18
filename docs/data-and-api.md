@@ -18,8 +18,8 @@
 
   CLI  chronicle search / show ──▶ GET /v1/knowledge/…      ◀── знания
   MCP  knowledge_search / get  ──▶ /mcp                     ◀── знания
-  CLI  chronicle report day    ──▶ GET /v1/facts  (v2)      ◀── факты работы → проекции
-  внешние отчёты               ──▶ GET /v1/facts  (v2)
+  CLI  chronicle report day    ──▶ GET /v1/facts            ◀── факты работы → проекции
+  внешние отчёты               ──▶ GET /v1/facts
 ```
 
 Два контура данных:
@@ -172,7 +172,7 @@ JSON. Все пути, кроме `/v1/health`, требуют `Authorization: B
 | `400 { error }` | тело не JSON |
 | `422 { issues[] }` | не соответствует контракту; outbox клиента откладывает такой отчёт в `rejected/` |
 
-**`GET /v1/facts?from=&to=&person=&project=`** (v2) — сырые факты за период: сессии, сегменты, ходы, активность, результаты, коммиты, файлы. Основа для `chronicle report day` и внешних отчётов.
+**`GET /v1/facts?day=YYYY-MM-DD | from=&to=` `&person=&project=`** — сырые факты за период: действующие (не `superseded`) сегменты, пересекающие его, с ходами, активностью, результатами, коммитами и файлами; справочник проектов; настройки проекций (`idleGapMinutes`, `timezone`). `day` — локальные сутки в `timezone` сервиса. `person` — по умолчанию владелец токена, `*` — все. `project` — сегменты, касающиеся проекта. Основа для `chronicle report day` и внешних отчётов; `422` — нет периода.
 
 ### Знания
 
@@ -225,7 +225,7 @@ JSON. Все пути, кроме `/v1/health`, требуют `Authorization: B
 | `chronicle finish --agent <имя> (--session <id> \| --hook) [--detach]` | итог сессии: лог → выжимка → отчёт сегмента → outbox. `--hook` — ID сессии из JSON на stdin, `--detach` — в фоне |
 | `chronicle replay --agent <имя> --session <id>` | пересборка сессии целиком (`replace`): лог с начала, ходы с 1, выжимка без знаний |
 | `chronicle report submit <файл\|->` | отправить готовый `SessionReport` (проверяется по контракту до постановки в очередь) |
-| `chronicle report day [дата] [--person] [--project]` (v2) | отчёт за день: по проектам время `X ч (паралл. Y ч)`, эпизоды с результатами и коммитами, итог дня |
+| `chronicle report day [дата] [--person <кто>\|*] [--project <id>] [--idle <мин>]` | отчёт за день (по умолчанию — сегодня, свой): по проектам время `X ч (паралл. Y ч)`, эпизоды с результатами и коммитами, итог дня |
 | `chronicle outbox [list\|flush]` | очередь неотправленных отчётов |
 
 **Для интеграций** (без сети)

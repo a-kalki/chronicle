@@ -61,6 +61,26 @@ describe('HTTP API /v1', () => {
     expect(store.getSegment(segmentId)?.person).toBe('nur');
   });
 
+  it('GET /v1/facts: сегменты дня по часовому поясу; по умолчанию — свои, person=* — все', async () => {
+    await call('/v1/reports', { method: 'POST', body: JSON.stringify(report) });
+    const mine = (await (await call('/v1/facts?day=2026-10-17')).json()) as {
+      from: string;
+      settings: { timezone: string };
+      segments: { person: string; agentSessionId: string }[];
+    };
+    expect(mine.from).toBe('2026-10-16T19:00:00.000Z');
+    expect(mine.settings.timezone).toBe('Asia/Oral');
+    expect(mine.segments.map((s) => s.agentSessionId)).toEqual(['s-1']);
+
+    const other = (await (await call('/v1/facts?day=2026-10-17&person=ali')).json()) as { segments: unknown[] };
+    expect(other.segments).toEqual([]);
+    const all = (await (await call('/v1/facts?day=2026-10-17&person=*')).json()) as { segments: unknown[] };
+    expect(all.segments).toHaveLength(1);
+    const otherDay = (await (await call('/v1/facts?day=2026-10-18')).json()) as { segments: unknown[] };
+    expect(otherDay.segments).toEqual([]);
+    expect((await call('/v1/facts?day=вчера')).status).toBe(422);
+  });
+
   it('POST /v1/reports на нарушение контракта — 422 с описанием', async () => {
     const res = await call('/v1/reports', { method: 'POST', body: JSON.stringify({ ...report, version: 9 }) });
     expect(res.status).toBe(422);

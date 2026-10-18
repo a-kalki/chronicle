@@ -1,9 +1,11 @@
 /** HTTP API /v1 — тонкий адаптер над use case'ами. */
 import * as v from 'valibot';
+import { getFacts } from '../app/facts.ts';
 import { importEntries } from '../app/import-entries.ts';
 import { getEntry, recordUsage, searchKnowledge } from '../app/knowledge.ts';
 import type { Store } from '../app/store.ts';
 import { submitReport } from '../app/submit-report.ts';
+import { dayBounds } from '../domain/day.ts';
 import { handleMcp } from './mcp.ts';
 
 export interface HandlerDeps {
@@ -12,6 +14,8 @@ export interface HandlerDeps {
   tokens: { token: string; person: string }[];
   /** Сигнал о новых кандидатах в знания (запуск курирования) */
   onCandidates?: () => void;
+  /** Настройки проекций: порог простоя и часовой пояс границы дня */
+  settings?: { idleGapMinutes: number; timezone: string };
 }
 
 const json = (body: unknown, status = 200) => Response.json(body, { status });
@@ -19,7 +23,14 @@ const empty = (status: number) => new Response(null, { status });
 
 const UsageBody = v.object({ helped: v.nullable(v.boolean()) });
 
-export function createHandler({ store, tokens, onCandidates }: HandlerDeps): (req: Request) => Promise<Response> {
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+export function createHandler({
+  store,
+  tokens,
+  onCandidates,
+  settings = { idleGapMinutes: 30, timezone: 'Asia/Oral' },
+}: HandlerDeps): (req: Request) => Promise<Response> {
   /** Человек по токену запроса; null — токен неверный */
   const personOf = (req: Request): string | null => {
     const header = req.headers.get('authorization') ?? '';
@@ -43,6 +54,20 @@ export function createHandler({ store, tokens, onCandidates }: HandlerDeps): (re
       if (!res.ok) return json({ issues: res.issues }, 422);
       if (res.candidates > 0) onCandidates?.();
       return json(res, res.duplicate ? 200 : 202);
+    }
+
+    if (req.method === 'GET' && path === '/v1/facts') {
+      const p = url.searchParams;
+      const day = p.get('day');
+      const bounds =
+        day && DAY.test(day) ? dayBounds(day, settings.timezone) : { from: p.get('from'), to: p.get('to') };
+      if (!bounds.from || !bounds.to || Number.isNaN(Date.parse(bounds.from)) || Number.isNaN(Date.parse(bounds.to))) {
+        return json({ error: 'ожидается day=YYYY-MM-DD или from и to (ISO 8601)' }, 422);
+      }
+      // по умолчанию — факты того, чей токен; person=* — все люди
+      const who = p.get('person') ?? person;
+      const query = { from: bounds.from, to: bounds.to, person: who === '*' ? null : who, project: p.get('project') };
+      return json(getFacts(store, query, settings));
     }
 
     if (req.method === 'POST' && path === '/v1/import/entries') {

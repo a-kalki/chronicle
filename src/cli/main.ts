@@ -6,7 +6,9 @@ import { join } from 'node:path';
 import { extractResultJsonSchema } from '../../contract/json-schema.ts';
 import { parseSessionReport } from '../../contract/report.ts';
 import { AGENT_NAMES, getAdapter } from '../adapters/index.ts';
+import { dayReport, formatDayReport } from '../app/day-report.ts';
 import { formatEntry } from '../app/format.ts';
+import { localDate } from '../domain/day.ts';
 import { runFinish } from '../finish/finish.ts';
 import { formatStatusLine, readLastFinish, writeLastFinish } from '../finish/last-result.ts';
 import { FinishState } from '../finish/state.ts';
@@ -20,6 +22,8 @@ const USAGE = `Использование:
   chronicle show <id>
   chronicle used <id> --helped yes|no|unknown
   chronicle report submit <файл|->
+  chronicle report day [YYYY-MM-DD] [--person <кто>|*] [--project <id>] [--idle <мин>]
+                                 отчёт за день: время по проектам, эпизоды, результаты, коммиты
   chronicle outbox [list|flush]
   chronicle finish --agent <имя> (--session <id> | --hook) [--detach]
                                  итог сессии: выжимка агентом → отчёт сегмента
@@ -170,6 +174,14 @@ async function main(argv: string[]) {
     console.log(formatFlush(res));
     if (res.rejected > 0) process.exit(1);
     return;
+  }
+
+  if (cmd === 'report' && positional[0] === 'day') {
+    const day = positional[1] ?? localDate(Date.now(), Intl.DateTimeFormat().resolvedOptions().timeZone);
+    await outbox.flush(send);
+    const facts = await api.facts(day, { person: flags.person, project: flags.project });
+    const idle = flags.idle ? Number(flags.idle) : undefined;
+    return console.log(formatDayReport(dayReport(facts, { day, idleGapMinutes: idle }), facts.settings.timezone));
   }
 
   // list показывает очередь как есть — для диагностики

@@ -1,4 +1,5 @@
 /** HTTP-клиент сервиса. Сетевые сбои и 5xx — «недоступен» (отчёт останется в очереди). */
+import type { Facts } from '../app/facts.ts';
 import type { SearchHit } from '../app/knowledge.ts';
 import type { KnowledgeEntry, ProjectRef } from '../app/store.ts';
 import type { SendResult } from './outbox.ts';
@@ -51,6 +52,14 @@ export class ApiClient {
     if (res.status === 404) return false;
     await this.ok(res);
     return true;
+  }
+
+  /** Факты работы за локальный день сервиса; person — по умолчанию свои, * — все */
+  async facts(day: string, filter: { person?: string; project?: string } = {}): Promise<Facts> {
+    const params = new URLSearchParams({ day });
+    if (filter.person) params.set('person', filter.person);
+    if (filter.project) params.set('project', filter.project);
+    return (await this.ok(await this.request(`/v1/facts?${params}`))).json() as Promise<Facts>;
   }
 
   /** Импорт отобранных записей из прежних систем (мимо курирования) */

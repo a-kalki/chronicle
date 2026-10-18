@@ -32,6 +32,11 @@ const curator = startCurator({
 const server = Bun.serve({
   port: config.port,
   hostname: config.hostname,
-  fetch: createHandler({ store, tokens: config.tokens, onCandidates: curator.kick }),
+  fetch: createHandler({
+    store,
+    tokens: config.tokens,
+    onCandidates: curator.kick,
+    settings: { idleGapMinutes: config.idleGapMinutes, timezone: config.timezone },
+  }),
 });
 log(`chronicle слушает ${server.url} (БД: ${config.dbPath}, LLM: ${config.llm.model})`);

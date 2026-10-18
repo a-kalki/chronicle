@@ -63,6 +63,72 @@ describe('ClaudeCodeAdapter.readSession', () => {
     expect(read?.watermark).toBe(7);
   });
 
+  it('ходы: реплика человека и пути из вызовов инструментов агента до следующей реплики', () => {
+    const tool = (name: string, input: object) => ({ type: 'tool_use', id: name, name, input });
+    const at = (s: number) => `2026-10-17T05:02:${String(s).padStart(2, '0')}.000Z`;
+    appendFileSync(
+      file,
+      [
+        line({
+          ...base,
+          type: 'assistant',
+          timestamp: at(1),
+          message: {
+            content: [
+              { type: 'text', text: 'смотрю' },
+              tool('Read', { file_path: '/home/nur/dev/tools/chronicle/README.md' }),
+              tool('Edit', { file_path: '/home/nur/dev/tools/chronicle/src/a.ts', old_string: 'a', new_string: 'b' }),
+              tool('Bash', { command: 'cd /home/nur/dev/tools/chronicle && git status', description: 'x' }),
+              tool('Grep', { pattern: 'x', path: 'src' }),
+              tool('NotebookEdit', { notebook_path: '/n/a.ipynb', new_source: '' }),
+              tool('Bash', { command: 'bun test' }),
+            ],
+          },
+        }),
+        line({
+          ...base,
+          type: 'user',
+          timestamp: at(2),
+          message: { content: '<local-command-stdout>x</local-command-stdout>' },
+        }),
+        line({ ...base, type: 'user', timestamp: at(3), message: { content: 'третья\nреплика' } }),
+      ].join(''),
+    );
+    const read = new ClaudeCodeAdapter(projects, undefined, () => 0).readSession(ID, null);
+    expect(read?.turns.map((t) => [t.at, t.text])).toEqual([
+      ['2026-10-17T05:00:00.000Z', 'привет'],
+      ['2026-10-17T05:01:00.000Z', 'дальше'],
+      [at(3), 'третья реплика'],
+    ]);
+    expect(read?.turns[0]?.actions).toEqual([]);
+    expect(read?.turns[1]?.actions).toEqual([
+      { path: '/home/nur/dev/tools/chronicle/README.md', kind: 'read' },
+      { path: '/home/nur/dev/tools/chronicle/src/a.ts', kind: 'edit' },
+      { path: '/home/nur/dev/tools/chronicle', kind: 'shell' },
+      { path: '/home/nur/dev/kalki/u7-school/src', kind: 'read' },
+      { path: '/n/a.ipynb', kind: 'edit' },
+    ]);
+  });
+
+  it('работа агента до первой новой реплики относится к первому ходу сегмента', () => {
+    appendFileSync(
+      file,
+      [
+        line({
+          ...base,
+          type: 'assistant',
+          timestamp: '2026-10-17T05:02:00.000Z',
+          message: { content: [{ type: 'tool_use', name: 'Write', input: { file_path: '/x/a' } }] },
+        }),
+        line({ ...base, type: 'user', timestamp: '2026-10-17T05:03:00.000Z', message: { content: 'ещё' } }),
+      ].join(''),
+    );
+    const read = new ClaudeCodeAdapter(projects, undefined, () => 0).readSession(ID, 6);
+    expect(read?.turns).toEqual([
+      { at: '2026-10-17T05:03:00.000Z', text: 'ещё', actions: [{ path: '/x/a', kind: 'edit' }] },
+    ]);
+  });
+
   it('форк: события старше создания лога (с запасом в минуту) — скопированная история, отбрасываются', () => {
     const created = Date.parse('2026-10-17T05:01:30.000Z');
     const read = new ClaudeCodeAdapter(projects, undefined, () => created).readSession(ID, null);

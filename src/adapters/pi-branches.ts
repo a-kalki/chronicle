@@ -29,11 +29,12 @@ function isNoise(call: { name?: string; arguments?: { command?: unknown } }): bo
 const CUT = '\n…(обрезано)';
 
 /** pi раскрывает скил прямо в реплике пользователя — оставляем только его имя */
-const collapseSkills = (text: string) => text.replace(/<skill name="([^"]+)"[^>]*>[\s\S]*?<\/skill>/g, '[скил $1]');
+export const collapseSkills = (text: string) =>
+  text.replace(/<skill name="([^"]+)"[^>]*>[\s\S]*?<\/skill>/g, '[скил $1]');
 
 const clip = (s: string, max: number) => (s.length > max ? `${s.slice(0, max)}…` : s);
 
-function textOf(content: unknown): string {
+export function textOf(content: unknown): string {
   if (typeof content === 'string') return content;
   if (!Array.isArray(content)) return '';
   return content

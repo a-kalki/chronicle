@@ -18,7 +18,7 @@ function fakeAdapter(log: SessionRead['events'], extract: () => unknown = () => 
     defaultExtractModel: 'cheap',
     readSession(_id, watermark) {
       const from = (watermark as number | null) ?? 0;
-      return { cwd: tmpdir(), source: 'log', events: log.slice(from), watermark: log.length };
+      return { cwd: tmpdir(), source: 'log', events: log.slice(from), turns: [], watermark: log.length };
     },
     async extract(_id, options) {
       calls.extract++;

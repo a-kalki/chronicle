@@ -10,10 +10,13 @@ import {
   type AgentAdapter,
   COPIED_HISTORY_SLACK_MS,
   type ExtractOptions,
+  type PathAction,
   type SessionRead,
+  type SessionTurn,
 } from '../finish/adapter.ts';
 import { parseModelJson } from './model-json.ts';
-import { abandonedBranchesText, type PiLine } from './pi-branches.ts';
+import { absPath, shellActions, turnText } from './paths.ts';
+import { abandonedBranchesText, collapseSkills, type PiLine, textOf } from './pi-branches.ts';
 import { EXTRACT_TIMEOUT_MS, extractEnv, type Runner, runCommand } from './run.ts';
 
 interface LogLine extends PiLine {
@@ -21,6 +24,16 @@ interface LogLine extends PiLine {
 }
 
 const ACTORS: Record<string, 'user' | 'agent'> = { user: 'user', assistant: 'agent', toolResult: 'agent' };
+
+const EDIT_TOOLS = new Set(['edit', 'write']);
+
+/** Пути вызова инструмента: правка, shell (cd, git), прочие пути — чтение и поиск */
+function callActions(c: { name?: string; arguments?: Record<string, unknown> }, cwd: string): PathAction[] {
+  const args = c.arguments ?? {};
+  if (c.name === 'bash') return typeof args.command === 'string' ? shellActions(args.command, cwd) : [];
+  if (typeof args.path !== 'string' || !args.path) return [];
+  return [{ path: absPath(args.path, cwd), kind: EDIT_TOOLS.has(c.name ?? '') ? 'edit' : 'read' }];
+}
 
 /** Полные строки лога: последняя без перевода строки может дописываться прямо сейчас — её не берём */
 function readLines(path: string): LogLine[] {
@@ -58,13 +71,27 @@ export class PiAdapter implements AgentAdapter {
     // Заголовок сессии — момент её создания: в форке всё, что старше, — скопированная история
     const header = lines.find((l) => l.type === 'session');
     const cutoff = header?.timestamp ? Date.parse(header.timestamp) - COPIED_HISTORY_SLACK_MS : 0;
-    const events: SessionRead['events'] = [];
-    for (const l of lines.slice(from)) {
-      const actor = l.type === 'message' ? ACTORS[l.message?.role ?? ''] : undefined;
-      if (actor && l.timestamp && Date.parse(l.timestamp) >= cutoff) events.push({ at: l.timestamp, actor });
-    }
     const cwd = header?.cwd ?? process.cwd();
-    return { cwd, source: 'log', events, watermark: lines.length };
+    const events: SessionRead['events'] = [];
+    const turns: SessionTurn[] = [];
+    /** Работа агента до первой новой реплики — достанется первому ходу */
+    let pending: PathAction[] = [];
+    for (const l of lines.slice(from)) {
+      const role = l.message?.role ?? '';
+      const actor = l.type === 'message' ? ACTORS[role] : undefined;
+      if (!actor || !l.timestamp || Date.parse(l.timestamp) < cutoff) continue;
+      events.push({ at: l.timestamp, actor });
+      if (role === 'user') {
+        turns.push({ at: l.timestamp, text: turnText(collapseSkills(textOf(l.message?.content))), actions: pending });
+        pending = [];
+      } else if (role === 'assistant' && Array.isArray(l.message?.content)) {
+        const actions = (l.message.content as { type?: string; name?: string; arguments?: Record<string, unknown> }[])
+          .filter((c) => c?.type === 'toolCall')
+          .flatMap((c) => callActions(c, cwd));
+        (turns[turns.length - 1]?.actions ?? pending).push(...actions);
+      }
+    }
+    return { cwd, source: 'log', events, turns, watermark: lines.length };
   }
 
   async extract(sessionId: string, o: ExtractOptions): Promise<unknown> {

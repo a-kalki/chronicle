@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PiAdapter } from './pi.ts';
 import type { RunOptions } from './run.ts';
@@ -38,6 +38,54 @@ describe('PiAdapter.readSession', () => {
       { at: '2026-10-06T04:37:20.000Z', actor: 'agent' },
     ]);
     expect(read?.watermark).toBe(6);
+  });
+
+  it('ходы: реплика человека и пути вызовов инструментов до следующей реплики', () => {
+    const call = (name: string, args: object) => ({ type: 'toolCall', id: name, name, arguments: args });
+    writeFileSync(
+      file,
+      [
+        line({ type: 'session', id: ID, timestamp: '2026-10-06T04:36:14.899Z', cwd: '/home/nur/dev/kalki/u7-school' }),
+        line({
+          type: 'message',
+          timestamp: '2026-10-06T04:37:00.000Z',
+          message: { role: 'user', content: [{ type: 'text', text: 'сделай <skill name="recall">длинно</skill>' }] },
+        }),
+        line({
+          type: 'message',
+          timestamp: '2026-10-06T04:37:10.000Z',
+          message: {
+            role: 'assistant',
+            content: [
+              { type: 'thinking', thinking: '…' },
+              call('read', { path: 'README.md' }),
+              call('edit', { path: '/home/nur/dev/tools/chronicle/a.ts', edits: [] }),
+              call('write', { path: '/tmp/x.md', content: '' }),
+              call('bash', { command: 'cd ~/dev/tools/chronicle && git log' }),
+              call('grep', { pattern: 'x', path: '/srv' }),
+              call('dcp_prune', { ids: [] }),
+            ],
+          },
+        }),
+        msg('toolResult', '2026-10-06T04:37:20.000Z'),
+        line({ type: 'message', timestamp: '2026-10-06T04:38:00.000Z', message: { role: 'user', content: 'ещё' } }),
+      ].join(''),
+    );
+    const read = new PiAdapter(sessions).readSession(ID, null);
+    expect(read?.turns).toEqual([
+      {
+        at: '2026-10-06T04:37:00.000Z',
+        text: 'сделай [скил recall]',
+        actions: [
+          { path: '/home/nur/dev/kalki/u7-school/README.md', kind: 'read' },
+          { path: '/home/nur/dev/tools/chronicle/a.ts', kind: 'edit' },
+          { path: '/tmp/x.md', kind: 'edit' },
+          { path: `${homedir()}/dev/tools/chronicle`, kind: 'shell' },
+          { path: '/srv', kind: 'read' },
+        ],
+      },
+      { at: '2026-10-06T04:38:00.000Z', text: 'ещё', actions: [] },
+    ]);
   });
 
   it('после watermark — только новые события', () => {

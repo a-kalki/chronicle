@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHandler } from '../http/server.ts';
@@ -121,6 +121,11 @@ describe('findRepo', () => {
   it('путь, игнорируемый своим репо (как ~/.pi в репо домашнего каталога), проекта не даёт', () => {
     writeFileSync(join(repo, '.gitignore'), '.*\n!.gitignore\n');
     expect(findRepo(join(repo, '.pi/agent/AGENTS.md'))).toBeNull();
+    // каталог: шаблоны вида */ git применяет, только если видит, что это каталог
+    writeFileSync(join(repo, '.gitignore'), '*/\n');
+    mkdirSync(join(repo, 'data'), { recursive: true });
+    expect(findRepo(join(repo, 'data'))).toBeNull();
+    writeFileSync(join(repo, '.gitignore'), '.*\n!.gitignore\n');
     expect(findRepo(join(repo, 'src/a.ts'))?.path).toBe(repo);
     rmSync(join(repo, '.gitignore'));
   });

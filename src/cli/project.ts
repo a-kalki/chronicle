@@ -72,7 +72,9 @@ export function findRepo(
   const root = git(existingDir(path), 'rev-parse', '--show-toplevel');
   if (!root) return null;
   // отслеживаемые файлы check-ignore не считает игнорируемыми, даже если они подходят под шаблон
-  if (path !== root && git(root, 'check-ignore', '-q', path) !== null) return null;
+  // каталогу — завершающий /, иначе git не применит к нему шаблоны вида */
+  const probe = existsSync(path) && statSync(path).isDirectory() ? `${path.replace(/\/+$/, '')}/` : path;
+  if (path !== root && git(root, 'check-ignore', '-q', probe) !== null) return null;
   return describeRepo(root, resolveHost);
 }
 

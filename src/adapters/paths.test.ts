@@ -23,6 +23,11 @@ describe('shellActions', () => {
     expect(shellActions('git commit -m "x"', '/repo')).toEqual([{ path: '/repo', kind: 'shell' }]);
   });
 
+  it('cd и git внутри ssh — работа на другой машине, локальных путей нет', () => {
+    expect(shellActions('ssh kalki_server "cd ~/server-ops && git pull"', '/repo')).toEqual([]);
+    expect(shellActions("cd /repo && ssh host 'cd /srv/x; git log'", '/a')).toEqual([]);
+  });
+
   it('команда без cd и git путей не даёт', () => {
     expect(shellActions('bun test && echo cd', '/repo')).toEqual([]);
   });

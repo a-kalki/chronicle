@@ -105,11 +105,9 @@
 
 SQLite, один файл; таблицы и правило перехода на v2 — [data-and-api.md](data-and-api.md) §4. Перед миграцией схемы на сервере — копия файла БД; бэкап — `sqlite3 .backup` по расписанию.
 
-## 9. Миграция из pi-chronicle (выполнена 2026-10-17)
+## 9. Миграция из pi-chronicle
 
-- Перенесены 30 из 53 записей — только ловушки и факты, отбор LLM с ручной проверкой; исходные ID и статистика «помогло» сохранены (история записи — `imported`). Практики и решения не переносились.
-- 54 сессии worklog → сегменты 1 с `coarse`-активностью (интервал = начало + активные минуты).
-- pi-chronicle и проектные `.pi/knowledge` удалены; скрипт импорта — в истории git (`scripts/import-pi-chronicle.ts`). Эндпоинт `POST /v1/import/entries` остаётся для будущих переносов.
+Выполнена 2026-10-17 — [archive/pi-chronicle-migration.md](archive/pi-chronicle-migration.md).
 
 ## 10. Структура кода
 
@@ -125,5 +123,5 @@ chronicle/
   src/adapters/    # адаптеры агентов (claude-code, pi): активность, ходы, пути, выжимка
   src/finish/      # общая часть /finish и replay: состояние сессий, коммиты, сборка отчёта
   integrations/    # подключение к агентам: хук Claude Code, pi-пакет, скил recall
-  docs/            # spec.md, data-and-api.md, agent-contract.md, plan.md, install.md, deploy.md
+  docs/            # документация (карта — в AGENTS.md), archive/ — отработанное
 ```

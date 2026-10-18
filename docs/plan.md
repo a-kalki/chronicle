@@ -11,7 +11,7 @@
 Спека — `spec.md`, модель — `data-and-api.md` §2–§3, контракт — `agent-contract.md` (A10, v2). Повод: проект определялся по `cwd` запуска, работа в другом репо терялась (сессия 4e6bfd2b 2026-10-17: 27 коммитов chronicle не учтены).
 
 - [x] Контракт v2: `contract/v2.ts` (`SessionReport`, `ExtractResult` с эпизодами), v1 остаётся; общее — `contract/common.ts`
-- [ ] Домен: проект хода по путям с весами и наследованием (поверх `detectProject`); объединение и пересечение интервалов (рядом с `activeMs`)
+- [x] Домен: проект хода по путям с весами и наследованием (поверх `detectProject`); объединение и пересечение интервалов (рядом с `activeMs`)
 - [ ] Миграция SQLite: `persons`, `turns`, `outcomes`, `project_id` у `commits`/`segment_files`, `person`/`launch_project` у `sessions`, `superseded` у `segments`; токены → человек в настройках
 - [ ] `submitReport` v2 и v1 (как сегмент без ходов); `replace` — пометка прежних сегментов сессии `superseded`
 - [ ] Адаптер Claude Code: ходы и пути из JSONL (`tool_use`: `file_path`/`path`/`notebook_path`, `cd` в Bash)

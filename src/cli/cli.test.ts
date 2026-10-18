@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHandler } from '../http/server.ts';
 import { openStore } from '../infra/sqlite-store.ts';
-import { detectProject } from './project.ts';
+import { detectProject, findRepo, repoResolver } from './project.ts';
 
 const CLI = join(import.meta.dir, 'main.ts');
 const root = mkdtempSync(join(tmpdir(), 'chronicle-cli-'));
@@ -98,6 +98,30 @@ describe('detectProject', () => {
 
   it('вне git — текущий каталог без remote', () => {
     expect(detectProject(root)).toEqual({ name: root.split('/').pop() as string, path: root });
+  });
+});
+
+describe('findRepo', () => {
+  it('файл внутри репо (даже ещё не созданный) — корень репо и remote', () => {
+    const expected = { name: 'u7-school', path: repo, remote: 'github.com/nurgeo/u7-school' };
+    expect(findRepo(join(repo, 'src/new/file.ts'))).toEqual(expected);
+    expect(findRepo(repo)).toEqual(expected);
+  });
+
+  it('вне git — null', () => {
+    expect(findRepo(join(root, 'notes.md'))).toBeNull();
+  });
+
+  it('repoResolver запоминает ответ по каталогу', () => {
+    let calls = 0;
+    const resolve = repoResolver((p) => {
+      calls++;
+      return findRepo(p);
+    });
+    resolve(join(repo, 'a.ts'));
+    resolve(join(repo, 'b.ts'));
+    expect(resolve(join(repo, 'c.ts'))?.path).toBe(repo);
+    expect(calls).toBe(1);
   });
 });
 

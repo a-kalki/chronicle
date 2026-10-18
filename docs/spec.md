@@ -93,15 +93,16 @@
 
 ## 7. Настройки
 
-**Сервис** (`chronicle.server.json` + переменные окружения):
-- `dbPath`;
-- `tokens[]` — `{ token, person }`;
-- `llm.model` — по умолчанию `deepseek/deepseek-flash`; `llm.apiKeyEnv` — по умолчанию `DEEPSEEK_API_KEY`;
-- `idleGapMinutes` — по умолчанию 30;
-- `timezone` — для границы дня в проекциях, по умолчанию `Asia/Oral`;
-- `archiveAfterDays` — по умолчанию 120.
+**Сервис** (`chronicle.server.json` + переменные окружения; пример — [install.md](install.md) §1):
+- `port` — 4517; `hostname` — `127.0.0.1` (наружу — через обратный прокси);
+- `dbPath` — `./data/chronicle.db`;
+- `tokens[]` — `{ token, person }`, дополняются из `CHRONICLE_TOKENS=человек:токен,…`;
+- `llm.model` — `deepseek/deepseek-flash`; `llm.apiKeyEnv` — `DEEPSEEK_API_KEY`; `llm.baseUrl` — для провайдера, кроме `deepseek` и `openai`;
+- `idleGapMinutes` — 30;
+- `timezone` — граница дня в проекциях, `Asia/Oral`;
+- `archiveAfterDays` — 120; `curateIntervalSeconds` — 300.
 
-**Клиент** (`~/.config/chronicle/config.json`): `serverUrl`, `token`, `host` (`laptop`, `kalki-server`), `outboxDir`.
+**Клиент** (`~/.config/chronicle/config.json`): `serverUrl`, `token`, `host` (slug машины: `laptop`), `extractModel`, `outboxDir`, `stateDir`.
 
 ## 8. Хранилище (SQLite)
 

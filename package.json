@@ -2,6 +2,11 @@
   "name": "chronicle",
   "version": "0.1.0",
   "description": "Сервис итогов рабочих сессий агентов: знания, сделанная работа, активное время",
+  "license": "MIT-0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/a-kalki/chronicle.git"
+  },
   "type": "module",
   "private": true,
   "bin": {

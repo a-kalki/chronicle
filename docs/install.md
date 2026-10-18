@@ -49,8 +49,9 @@ agy: `agy mcp add …` с теми же адресом и заголовком.
 
 ## 4. agy
 
-- Скил `/finish`: `ln -s ~/dev/tools/chronicle/integrations/agy/skills/finish ~/.gemini/config/skills/finish`
+- Скил finish: `ln -s ~/dev/tools/chronicle/integrations/agy/skills/finish ~/.gemini/config/skills/finish`
 - Скил recall: `ln -s ~/dev/tools/chronicle/integrations/skills/recall ~/.gemini/config/skills/recall`
+- Уведомление в новой сессии (хук `SessionStart`): `ln -s ~/dev/tools/chronicle/integrations/agy/hooks.json ~/.gemini/config/hooks.json`
 - Модель выжимки в `~/.config/chronicle/config.json`: `extractModel.agy: "gemini-3.8-flash-low"`. Выжимка выполняется неинтерактивно с вызовом `agy -p`.
 
 ## Диагностика
